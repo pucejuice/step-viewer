@@ -101,6 +101,7 @@
         <div class="row">
           <button id="btnCopy">Copy properties</button>
           <button id="btnIsolateSel">Isolate</button>
+          <button id="btnDxfSel" title="2D DXF drawing of just the selected part(s)">DXF of selection</button>
           <button id="btnHideSel">Hide</button>
           <button id="btnClearSel">Clear</button>
         </div>
@@ -111,6 +112,9 @@
         <div class="row">
           <label class="check"><input id="groupGeom" type="checkbox" checked> Group same size &amp; volume (±0.5 %)</label>
           <label class="check"><input id="partsVisibleOnly" type="checkbox"> Visible only</label>
+        </div>
+        <p class="muted small">Tick boxes turn a whole group on or off in the view and the DXF. Click a row to select it.</p>
+        <div class="row">
         </div>
         <div id="partsTableWrap"><table id="partsTable"></table></div>
         <div class="row"><button id="btnCsv">Export CSV</button></div>
@@ -156,7 +160,7 @@
       </div>
 
       <div class="tab" id="tab-export" hidden>
-        <p class="muted small">2D drawing of the visible parts (or the selection), 1:1 in mm, with hidden lines. Line work comes from the mesh edges and silhouettes, so curves are polylines.</p>
+        <p class="muted small">2D drawing, 1:1 in mm. Turn parts on and off in the tree (or the Parts list) to choose what is drawn, or pick <b>Selection only</b> to draw one member. Line work comes from the mesh edges and silhouettes, so curves are polylines.</p>
         <h3>Views</h3>
         <div class="checks">
           <label class="check"><input type="checkbox" name="dxfView" value="front" checked> Front</label>
@@ -178,7 +182,12 @@
             <option value="visible">All visible parts</option>
             <option value="selection">Selection only</option>
           </select></label>
-        <label class="check"><input id="dxfHidden" type="checkbox" checked> Hidden lines (dashed, layer HIDDEN)</label>
+        <label>Hidden lines (dashed, layer HIDDEN)
+          <select id="dxfHidden">
+            <option value="auto">Auto: on for up to 40 parts</option>
+            <option value="on">On</option>
+            <option value="off">Off</option>
+          </select></label>
         <label class="check"><input id="dxfTangent" type="checkbox"> Tangent edges</label>
         <label class="check"><input id="dxfDims" type="checkbox" checked> Overall dimensions</label>
         <label class="check"><input id="dxfIsoTrue" type="checkbox" checked> Isometric axes at true length (×1.225)</label>

@@ -15,7 +15,8 @@ A static web app for checking fabricators' STEP and IGES models in the browser, 
   - triangle count;
   - copy to clipboard.
 - **Multi-select:** Ctrl/Shift-click, or long press on touch.
-- **Parts list:** groups identical parts (same name, or same bounding box and volume within 0.5 %), with quantity, size, volume and mass each and in total. CSV export.
+- **Parts list:** groups identical parts (same name, or same bounding box and volume within 0.5 %), with quantity, size, volume and mass each and in total. A tick box per group turns that whole group on or off (for example, hide every bolt). CSV export.
+- **Turning parts on and off:** tree tick boxes, parts-list tick boxes, Hide / Isolate / Show all, and the `H`, `I` and `A` keys. Hidden parts are left out of the DXF.
 - **Viewing:**
   - standard views, fit all, fit selection;
   - perspective/orthographic;
@@ -31,10 +32,11 @@ A static web app for checking fabricators' STEP and IGES models in the browser, 
 - **DXF drawing export:**
   - front, top, right, left, bottom and back views in a first- or third-angle layout, plus an isometric view and the current camera view;
   - hidden lines dashed on their own layer, overall dimensions, 1:1 in mm, AutoCAD R2000;
+  - draw everything that is switched on, or just the selection: **DXF of selection** in the Properties tab draws a single member;
   - see [DXF export](#dxf-export) for how it works.
 - **Phone:** touch orbit, pinch zoom and two-finger pan. The tree and the tools panel become drawers, and a chip at the bottom summarises the selection.
 
-Keyboard: `F` fit all, `S` fit selection, `O` ortho, `E` edges, `M` measure, `Esc` clear.
+Keyboard: `F` fit all, `S` fit selection, `O` ortho, `E` edges, `M` measure, `H` hide selection, `I` isolate selection, `A` show all, `Esc` clear.
 
 ## Run locally
 

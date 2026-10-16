@@ -147,6 +147,11 @@ function addDim(dwg, p1, p2, offsetDir, offset, th, value) {
   dwg.append(new Text(txt, [mx, my, 0], { height: th, rotation: rot, layer: 'DIMS' }));
 }
 
+// R2000 DXF text is not UTF-8. Common drafting symbols get their AutoCAD
+// codes or plain ASCII; anything else is written as a \U+XXXX escape.
+const DXF_CHARS = { '–': '-', '—': '-', '×': 'x', '°': '%%d', 'Ø': '%%c', 'ø': '%%c', '±': '%%p', '’': "'", '‘': "'", '“': '"', '”': '"' };
+const dxfStr = (t) => String(t).replace(/[^\x20-\x7e]/g, (c) => DXF_CHARS[c] ?? '\\U+' + c.codePointAt(0).toString(16).toUpperCase().padStart(4, '0'));
+
 /** sdxf Drawing from a laid-out sheet. */
 export function sheetToDxf(sheet, { title = '', hiddenLines = true } = {}) {
   const th = sheet.textHeight;
@@ -186,7 +191,7 @@ export function sheetToDxf(sheet, { title = '', hiddenLines = true } = {}) {
     const b = v.bounds;
     const lblY = b.ymin - th * (v.dims ? 6.5 : 2.5);
     const label = v.scale && v.scale !== 1 ? `${v.label} (axes true length)` : v.label;
-    dwg.append(new Text(label, [b.xmin, lblY, 0], { height: th, layer: 'TEXT' }));
+    dwg.append(new Text(dxfStr(label), [b.xmin, lblY, 0], { height: th, layer: 'TEXT' }));
     if (v.dims) {
       addDim(dwg, [b.xmin, b.ymin], [b.xmax, b.ymin], [0, -1], th * 3, th * 0.8, v.dims.w);
       addDim(dwg, [b.xmin, b.ymin], [b.xmin, b.ymax], [-1, 0], th * 3, th * 0.8, v.dims.h);
@@ -194,24 +199,38 @@ export function sheetToDxf(sheet, { title = '', hiddenLines = true } = {}) {
   }
   const date = new Date().toISOString().slice(0, 10);
   const lines = [title, `Units mm, scale 1:1. Generated ${date} by STEP Viewer from mesh edges (approximate).`].filter(Boolean);
-  lines.forEach((t, i) => dwg.append(new Text(t, [xmin, ymin - th * (9 + 1.8 * i), 0], { height: i === 0 ? th * 1.2 : th * 0.7, layer: 'TEXT' })));
+  lines.forEach((t, i) => dwg.append(new Text(dxfStr(t), [xmin, ymin - th * (9 + 1.8 * i), 0], { height: i === 0 ? th * 1.2 : th * 0.7, layer: 'TEXT' })));
   return dwg.toString();
 }
 
-/** Quick SVG preview of a sheet (y flipped for screen). */
-export function sheetToSvg(sheet, { hiddenLines = true } = {}) {
+/** Preview of a sheet drawn once onto a canvas (cheap to show even for 100k polylines). */
+export function sheetToCanvas(sheet, { hiddenLines = true, width = 1600 } = {}) {
   const vs = sheet.views;
+  const th = sheet.textHeight;
   const xmin = Math.min(...vs.map(v => v.bounds.xmin)), xmax = Math.max(...vs.map(v => v.bounds.xmax));
-  const ymin = Math.min(...vs.map(v => v.bounds.ymin)), ymax = Math.max(...vs.map(v => v.bounds.ymax));
-  const pad = (xmax - xmin + ymax - ymin) * 0.03 + sheet.textHeight * 7;
+  const ymin = Math.min(...vs.map(v => v.bounds.ymin)) - th * 7, ymax = Math.max(...vs.map(v => v.bounds.ymax));
+  const pad = Math.max(xmax - xmin, ymax - ymin) * 0.03;
   const W = xmax - xmin + 2 * pad, H = ymax - ymin + 2 * pad;
-  const sw = Math.max(W, H) / 900;
-  const path = (pls) => pls.map(pl => 'M' + pl.pts.map(([x, y]) => `${(x - xmin + pad).toFixed(2)} ${(ymax - y + pad).toFixed(2)}`).join('L') + (pl.closed ? 'Z' : '')).join('');
-  let body = '';
+  const s = width / W;
+  const canvas = document.createElement('canvas');
+  canvas.width = width; canvas.height = Math.max(1, Math.round(H * s));
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+  const X = (x) => (x - xmin + pad) * s, Y = (y) => (ymax - y + pad) * s;
+  const stroke = (pls, color, dash, lw) => {
+    ctx.beginPath();
+    for (const pl of pls) {
+      pl.pts.forEach(([x, y], k) => (k ? ctx.lineTo(X(x), Y(y)) : ctx.moveTo(X(x), Y(y))));
+      if (pl.closed) ctx.closePath();
+    }
+    ctx.setLineDash(dash); ctx.strokeStyle = color; ctx.lineWidth = lw; ctx.stroke();
+  };
   for (const v of vs) {
-    if (hiddenLines) body += `<path d="${path(v.hidden)}" class="hid" stroke-width="${sw}" stroke-dasharray="${sw * 6} ${sw * 3}"/>`;
-    body += `<path d="${path(v.visible)}" class="vis" stroke-width="${sw * 1.5}"/>`;
-    body += `<text x="${(v.bounds.xmin - xmin + pad).toFixed(1)}" y="${(ymax - v.bounds.ymin + pad + sheet.textHeight * 2.5).toFixed(1)}" font-size="${sheet.textHeight * 1.2}">${v.label}</text>`;
+    if (hiddenLines) stroke(v.hidden, '#9a9a9a', [4, 3], 0.8);
+    stroke(v.visible, '#111', [], 1.2);
+    ctx.fillStyle = '#333';
+    ctx.font = `${Math.max(10, th * 1.2 * s)}px system-ui, sans-serif`;
+    ctx.fillText(v.label, X(v.bounds.xmin), Y(v.bounds.ymin - th * (v.dims ? 6.5 : 2.5)));
   }
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W.toFixed(1)} ${H.toFixed(1)}" preserveAspectRatio="xMidYMid meet">${body}</svg>`;
+  return canvas;
 }

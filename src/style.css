@@ -63,7 +63,7 @@ input[type="range"] { width: 100%; }
 
 #layout {
   height: calc(100% - var(--tb-h)); display: grid;
-  grid-template-columns: minmax(220px, 280px) 1fr minmax(300px, 360px);
+  grid-template-columns: minmax(240px, 320px) 1fr minmax(300px, 380px);
 }
 .panel { background: var(--panel); overflow: auto; min-width: 0; }
 #treePanel { border-right: 1px solid var(--border); display: flex; flex-direction: column; }
@@ -169,10 +169,7 @@ body.dragging #dropHint { display: flex; }
 #measureList li button { margin-left: 6px; }
 #dxfPreview { margin-top: 8px; border: 1px solid var(--border); border-radius: 6px; background: #fff; min-height: 0; }
 #dxfPreview:empty { display: none; }
-#dxfPreview svg { display: block; width: 100%; height: auto; max-height: 60vh; }
-#dxfPreview .vis { fill: none; stroke: #111; }
-#dxfPreview .hid { fill: none; stroke: #888; }
-#dxfPreview text { fill: #333; font-family: system-ui, sans-serif; }
+#dxfPreview canvas { display: block; width: 100%; height: auto; max-height: 60vh; object-fit: contain; }
 
 /* ── narrow screens: panels become drawers ───────────────────────────── */
 @media (max-width: 860px) {

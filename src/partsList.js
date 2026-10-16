@@ -28,7 +28,7 @@ export function groupParts(items, { tol = 0.005, byGeometry = true } = {}) {
     if (g && !sameShape(g.ref, it.analysis, Math.max(tol, 0.05))) g = undefined; // same name, clearly different part
     if (!g && byGeometry) g = groups.find(x => sameShape(x.ref, it.analysis, tol));
     if (!g) {
-      g = { name: it.name, names: new Set(), ids: [], ref: it.analysis };
+      g = { name: it.name, names: new Set(), ids: [], ref: it.analysis, label: it.label || '' };
       groups.push(g);
       if (it.name && !byName.has(it.name)) byName.set(it.name, g);
     }
@@ -36,7 +36,7 @@ export function groupParts(items, { tol = 0.005, byGeometry = true } = {}) {
     g.ids.push(it.id);
   }
   return groups.map(g => ({
-    name: [...g.names].filter(Boolean).join(' / ') || 'Unnamed',
+    name: [...g.names].filter(Boolean).join(' / ') || g.label || 'Unnamed',
     ids: g.ids, count: g.ids.length,
     size: sizeOf(g.ref), volume: g.ref.volume, area: g.ref.area, closed: g.ref.closed,
   })).sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));

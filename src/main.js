@@ -4,7 +4,7 @@ import { Viewer } from './viewer.js';
 import { sumProps } from './meshAnalysis.js';
 import { groupParts, partsCsv } from './partsList.js';
 import { Measurements } from './measure.js';
-import { buildSheet, sheetToDxf, sheetToSvg } from './dxf/dxfExport.js';
+import { buildSheet, sheetToDxf, sheetToCanvas } from './dxf/dxfExport.js';
 
 const $ = (s) => document.querySelector(s);
 const $$ = (s) => [...document.querySelectorAll(s)];
@@ -135,11 +135,12 @@ function addModel(fileName, res, ms) {
   root.file = file;
   file.rootId = root.id;
 
-  const addPart = (node, meshIndex, nameHint) => {
+  const addPart = (node, meshIndex, nameHint, autoName = false) => {
     const m = res.meshes[meshIndex];
     const name = nameHint || m.name || `Part ${++partNo}`;
     const part = {
       id: partCounter++, name, nodeId: node.id, visible: true, file: fileName,
+      autoName: autoName || (!nameHint && !m.name), context: node.parent ? node.parent.name : '',
       analysis: m.analysis, color: defaultColor(name, m.color),
     };
     parts[part.id] = part;
@@ -159,8 +160,10 @@ function addModel(fileName, res, ms) {
       if (!node.name) node.name = parts[node.partIds[0]].name;
     } else {
       meshes.forEach((mi, k) => {
-        const child = mkNode(res.meshes[mi].name || `${name || 'Solid'} ${k + 1}`, node);
-        addPart(child, mi, child.name);
+        // bodies without their own name inside a named part/assembly
+        const own = res.meshes[mi].name;
+        const child = mkNode(own || `Solid ${k + 1}`, node);
+        addPart(child, mi, child.name, !own);
       });
       kids.forEach(c => walk(c, node, depth + 1));
       if (!node.name) node.name = `Assembly ${node.id}`;
@@ -236,7 +239,7 @@ function renderTree() {
       e.stopPropagation();
       const on = e.target.checked;
       for (const id of ids) parts[id].visible = on;
-      viewer.refreshAppearance(); renderTree(); if (viewer.section.caps) viewer.setSection({});
+      afterVisibilityChange();
     });
     row.querySelector('.swatch').addEventListener('click', (e) => e.stopPropagation());
     row.querySelector('.swatch').addEventListener('input', (e) => {
@@ -309,6 +312,7 @@ function selectPart(id, additive) {
 function isolate(ids) {
   viewer.isolated = new Set(ids);
   viewer.refreshAppearance();
+  renderParts();
   viewer.fit(ids);
   if (viewer.section.axis) viewer.setSection({});
   toast('Isolated ' + ids.length + ' part' + (ids.length === 1 ? '' : 's') + ' — "Show all" to undo', '', 3000);
@@ -317,8 +321,14 @@ function isolate(ids) {
 function showAll() {
   viewer.isolated = null;
   for (const p of parts) if (p) p.visible = true;
+  afterVisibilityChange();
+}
+
+/** Re-sync the view, tree, parts list and section caps after parts are shown or hidden. */
+function afterVisibilityChange() {
   viewer.refreshAppearance();
   renderTree();
+  renderParts();
   if (viewer.section.axis) viewer.setSection({});
 }
 
@@ -387,18 +397,30 @@ async function copyText(text) {
 let groups = [];
 function renderParts() {
   const visOnly = $('#partsVisibleOnly').checked;
-  const items = parts.filter(p => p && (!visOnly || viewer.partVisible(p))).map(p => ({ id: p.id, name: p.name, analysis: p.analysis }));
+  const items = parts.filter(p => p && (!visOnly || viewer.partVisible(p))).map(p => ({
+    id: p.id, name: p.autoName ? '' : p.name, analysis: p.analysis,
+    label: p.autoName ? `Unnamed solid in ${p.context || nodes[p.nodeId].parent?.name || 'model'}` : p.name,
+  }));
   groups = groupParts(items, { byGeometry: $('#groupGeom').checked });
   const rho = density();
   let tq = 0, tm = 0, tv = 0;
   const body = groups.map((g, i) => {
     const m = g.volume * 1e-9 * rho;
     tq += g.count; tm += m * g.count; tv += g.volume * g.count;
-    return `<tr data-i="${i}"><td>${i + 1}</td><td class="n">${esc(g.name)}${g.closed ? '' : ' ⚠'}</td><td>${g.count}</td>
+    const on = g.ids.some(id => parts[id].visible);
+    return `<tr data-i="${i}"><td><input type="checkbox" class="gvis" title="Show / hide all ${g.count}" ${on ? 'checked' : ''}></td><td>${i + 1}</td><td class="n">${esc(g.name)}${g.closed ? '' : ' ⚠'}</td><td>${g.count}</td>
       <td>${g.size.map(v => nf(v, 1)).join(' × ')}</td><td>${nf(g.volume, 0)}</td><td>${ng(m)}</td><td>${ng(m * g.count)}</td></tr>`;
   }).join('');
-  $('#partsTable').innerHTML = groups.length ? `<thead><tr><th>#</th><th class="n">Name</th><th>Qty</th><th>Size X×Y×Z mm</th><th>Vol. each mm³</th><th>Mass each kg</th><th>Mass total kg</th></tr></thead>
-    <tbody>${body}</tbody><tfoot><tr><td></td><td class="n">Total</td><td>${tq}</td><td></td><td>${nf(tv, 0)}</td><td></td><td>${ng(tm)}</td></tr></tfoot>` : '<tbody><tr><td class="n muted">No parts loaded.</td></tr></tbody>';
+  $('#partsTable').innerHTML = groups.length ? `<thead><tr><th title="Visible">On</th><th>#</th><th class="n">Name</th><th>Qty</th><th>Size X×Y×Z mm</th><th>Vol. each mm³</th><th>Mass each kg</th><th>Mass total kg</th></tr></thead>
+    <tbody>${body}</tbody><tfoot><tr><td></td><td></td><td class="n">Total</td><td>${tq}</td><td></td><td>${nf(tv, 0)}</td><td></td><td>${ng(tm)}</td></tr></tfoot>` : '<tbody><tr><td class="n muted">No parts loaded.</td></tr></tbody>';
+  $$('#partsTable .gvis').forEach(cb => {
+    cb.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const g = groups[+cb.closest('tr').dataset.i];
+      for (const id of g.ids) parts[id].visible = cb.checked;
+      afterVisibilityChange();
+    });
+  });
   $$('#partsTable tbody tr[data-i]').forEach(tr => tr.addEventListener('click', (e) => {
     const g = groups[+tr.dataset.i];
     selectedNode = null;
@@ -487,19 +509,22 @@ async function generateDxf() {
   $('#btnDxfPreview').disabled = true; $('#btnDxfDownload').disabled = true;
   const t0 = performance.now();
   try {
+    const hm = $('#dxfHidden').value;
+    const hiddenOn = hm === 'on' || (hm === 'auto' && ids.length <= 40);
     const sel = ids.map(id => ({ geometry: parts[id].mesh.geometry, analysis: parts[id].analysis }));
     const sheet = await buildSheet(viewer.renderer, sel, {
-      views, angle: $('#dxfAngle').value, hidden: $('#dxfHidden').checked, tangentEdges: $('#dxfTangent').checked,
+      views, angle: $('#dxfAngle').value, hidden: hiddenOn, tangentEdges: $('#dxfTangent').checked,
       dims: $('#dxfDims').checked, isoTrueLength: $('#dxfIsoTrue').checked, resolution: +$('#dxfRes').value,
       current: viewer.viewBasis(),
     }, (msg) => { $('#dxfStatus').textContent = msg + '…'; });
     const base = (files.length === 1 ? files[0].name : 'models').replace(/\.[^.]+$/, '');
     const title = scope === 'selection' && ids.length === 1 ? `${base} – ${parts[ids[0]].name}` : base;
-    dxfText = sheetToDxf(sheet, { title, hiddenLines: $('#dxfHidden').checked });
-    dxfName = `${base}${scope === 'selection' ? '-selection' : ''}-views.dxf`;
-    $('#dxfPreview').innerHTML = sheetToSvg(sheet, { hiddenLines: $('#dxfHidden').checked });
+    dxfText = sheetToDxf(sheet, { title, hiddenLines: hiddenOn });
+    const safe = (s) => s.replace(/[^\w.\- ]+/g, '_').trim();
+    dxfName = scope === 'selection' && ids.length === 1 ? `${safe(base)}-${safe(parts[ids[0]].name)}.dxf` : `${safe(base)}${scope === 'selection' ? '-selection' : ''}-views.dxf`;
+    $('#dxfPreview').replaceChildren(sheetToCanvas(sheet, { hiddenLines: hiddenOn }));
     const nVis = sheet.views.reduce((s, v) => s + v.visible.length, 0), nHid = sheet.views.reduce((s, v) => s + v.hidden.length, 0);
-    $('#dxfStatus').textContent = `${sheet.views.length} view(s), ${nVis} visible and ${nHid} hidden polylines, ${(dxfText.length / 1e6).toFixed(2)} MB, ${((performance.now() - t0) / 1000).toFixed(1)} s.`;
+    $('#dxfStatus').textContent = `${ids.length} part${ids.length === 1 ? '' : 's'}, ${sheet.views.length} view(s), ${nVis} visible and ${nHid} hidden polylines${hiddenOn ? '' : ' (hidden lines off)'}, ${(dxfText.length / 1e6).toFixed(2)} MB, ${((performance.now() - t0) / 1000).toFixed(1)} s.`;
     $('#btnDxfDownload').disabled = false;
   } catch (e) {
     console.error(e);
@@ -598,10 +623,18 @@ $('#btnCopy').addEventListener('click', async () => {
   toast(await copyText(lastPropsText) ? 'Properties copied to the clipboard' : 'Copy failed', '', 2500);
 });
 $('#btnIsolateSel').addEventListener('click', () => { if (viewer.selected.size) isolate([...viewer.selected]); });
-$('#btnHideSel').addEventListener('click', () => {
-  for (const id of viewer.selected) parts[id].visible = false;
-  setSelection([], false); renderTree();
+$('#btnDxfSel').addEventListener('click', () => {
+  if (!viewer.selected.size) { toast('Select a part first'); return; }
+  $('#dxfScope').value = 'selection';
+  showTab('export');
+  generateDxf();
 });
+function hideSelection() {
+  for (const id of viewer.selected) parts[id].visible = false;
+  setSelection([], false);
+  afterVisibilityChange();
+}
+$('#btnHideSel').addEventListener('click', hideSelection);
 $('#btnClearSel').addEventListener('click', () => { selectedNode = null; setSelection([], false); });
 $('#btnShowAll').addEventListener('click', showAll);
 $('#btnCloseAll').addEventListener('click', closeAll);
@@ -651,6 +684,9 @@ window.addEventListener('keydown', (e) => {
   else if (k === 'o') setOrtho(viewer.camera !== viewer.ortho);
   else if (k === 'e') setEdges(!viewer.edgesOn);
   else if (k === 'm') $('#btnMeasure').click();
+  else if (k === 'h') hideSelection();
+  else if (k === 'i') { if (viewer.selected.size) isolate([...viewer.selected]); }
+  else if (k === 'a') showAll();
   else if (k === 'escape') { if (measure.mode) setMeasureMode(''); else { selectedNode = null; setSelection([], false); } }
 });
 

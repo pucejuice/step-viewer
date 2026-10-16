@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+- Dark mode by default; choosing Light is remembered on that device.
+- Parts list: a tick box per group turns all of those parts on or off.
+- **DXF of selection** button draws a single member. DXF files for one part are named after it.
+- Hidden lines in the DXF default to *Auto*: on for up to 40 parts, off for big assemblies, where they made 30+ MB files.
+- Bodies without a name are listed as "Unnamed solid in <assembly>" in the parts list.
+- Keys `H` hide, `I` isolate, `A` show all.
+- The DXF preview is drawn as an image, so large drawings preview quickly.
+
 ## v1.0.0 — 2026-10-16
 
 First release.
