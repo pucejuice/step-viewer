@@ -666,6 +666,49 @@ $('#btnCsv').addEventListener('click', () => {
   download(new Blob([partsCsv(groups, density(), materialName())], { type: 'text/csv' }), `${base}-parts-list.csv`);
 });
 $('#btnDxfPreview').addEventListener('click', generateDxf);
+
+// DXF settings: remembered per device (browser storage only; nothing is sent anywhere)
+const DXF_KEY = 'sv-dxf-settings';
+const DXF_FIELDS = ['dxfHidden', 'dxfAngle', 'dxfScope', 'dxfTangent', 'dxfDims', 'dxfIsoTrue', 'dxfRes'];
+const HIDDEN_NOTES = {
+  auto: 'Auto: dashed hidden lines (layer HIDDEN) for up to 40 parts, none for bigger drawings.',
+  on: 'On: hidden lines are always drawn, dashed on layer HIDDEN. Big assemblies can make very large files.',
+  off: 'Off: visible lines only.',
+};
+const dxfDefaults = {};
+function readDxfSettings() {
+  const o = {};
+  for (const id of DXF_FIELDS) { const el = document.getElementById(id); o[id] = el.type === 'checkbox' ? el.checked : el.value; }
+  o.views = $$('input[name="dxfView"]').filter(i => i.checked).map(i => i.value);
+  return o;
+}
+function setHiddenMode(mode) {
+  $('#dxfHidden').value = mode;
+  $$('#dxfHiddenSeg button').forEach(b => b.classList.toggle('active', b.dataset.hidden === mode));
+  $('#dxfHiddenNote').textContent = HIDDEN_NOTES[mode];
+}
+function applyDxfSettings(o) {
+  for (const id of DXF_FIELDS) {
+    if (!(id in o)) continue;
+    const el = document.getElementById(id);
+    if (el.type === 'checkbox') el.checked = !!o[id];
+    else if (id !== 'dxfHidden' && [...el.options].some(op => op.value === String(o[id]))) el.value = o[id];
+  }
+  if (['auto', 'on', 'off'].includes(o.dxfHidden)) setHiddenMode(o.dxfHidden);
+  if (Array.isArray(o.views)) $$('input[name="dxfView"]').forEach(i => { i.checked = o.views.includes(i.value); });
+}
+function saveDxfSettings() {
+  try { localStorage.setItem(DXF_KEY, JSON.stringify(readDxfSettings())); } catch { /* storage unavailable */ }
+}
+Object.assign(dxfDefaults, readDxfSettings());
+try { applyDxfSettings(JSON.parse(localStorage.getItem(DXF_KEY) || '{}')); } catch { /* storage unavailable or bad JSON */ }
+$$('#dxfHiddenSeg button').forEach(b => b.addEventListener('click', () => { setHiddenMode(b.dataset.hidden); saveDxfSettings(); }));
+$('#tab-export').addEventListener('change', saveDxfSettings);
+$('#btnDxfReset').addEventListener('click', () => {
+  applyDxfSettings(dxfDefaults);
+  try { localStorage.removeItem(DXF_KEY); } catch { /* storage unavailable */ }
+  toast('DXF settings reset', '', 2000);
+});
 $('#btnDxfDownload').addEventListener('click', () => {
   if (dxfText) download(new Blob([dxfText], { type: 'application/dxf' }), dxfName);
 });

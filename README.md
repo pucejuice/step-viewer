@@ -31,7 +31,9 @@ A static web app for checking fabricators' STEP and IGES models in the browser, 
 - **Output:** PNG screenshot (includes measurement labels).
 - **DXF drawing export:**
   - front, top, right, left, bottom and back views in a first- or third-angle layout, plus an isometric view and the current camera view;
-  - hidden lines dashed on their own layer, overall dimensions, 1:1 in mm, AutoCAD R2000;
+  - hidden lines dashed on their own layer, set at the top of the DXF tab: *Auto* (on for up to 40 parts), *On* or *Off*;
+  - overall dimensions, 1:1 in mm, AutoCAD R2000;
+  - DXF settings (hidden lines, views, projection, dimensions…) are remembered on the device, with a reset button;
   - draw everything that is switched on, or just the selection: **DXF of selection** in the Properties tab draws a single member;
   - see [DXF export](#dxf-export) for how it works.
 - **Phone:** touch orbit, pinch zoom and two-finger pan. The tree and the tools panel become drawers, and a chip at the bottom summarises the selection.
