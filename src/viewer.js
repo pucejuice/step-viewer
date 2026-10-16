@@ -58,10 +58,10 @@ export class Viewer {
     this.edgesOn = true;
     this.section = { axis: null, value: 0, flip: false, caps: true };
     this.clipPlane = new THREE.Plane(new THREE.Vector3(1, 0, 0), 0);
-    this.theme = 'light';
+    this.theme = 'dark';
     this.onRenderHooks = [];
     this._needsRender = true;
-    this.setTheme('light');
+    this.setTheme('dark');
 
     this.resizeObserver = new ResizeObserver(() => this.resize());
     this.resizeObserver.observe(container);

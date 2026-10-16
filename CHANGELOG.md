@@ -9,7 +9,7 @@ First release.
 - Model tree from the STEP product structure with visibility, isolate, colour and filter; selection synced both ways between tree and 3D view.
 - Properties of the selection: name, path, bounding box size and corners, volume (mm³, m³), surface area, centroid, triangle count, mass for aluminium / steel / stainless / custom density, with an open-mesh warning. Multi-select with Ctrl/Shift-click or long press; copy to clipboard.
 - Parts list grouping identical parts (same name, or same bounding box and volume within 0.5 %), CSV export.
-- Standard views, fit all / selection, perspective / orthographic, feature edges (true B-rep edges), transparency, ghosting, section plane on X/Y/Z with flip and caps, light / dark.
+- Standard views, fit all / selection, perspective / orthographic, feature edges (true B-rep edges), transparency, ghosting, section plane on X/Y/Z with flip and caps, dark mode by default with a light option.
 - Point-to-point distance with vertex snapping (dX, dY, dZ), angle between faces; measurements listed and kept until cleared; PNG screenshot including labels.
 - DXF export (R2000, mm, 1:1) of front / top / side / back / bottom views in first- or third-angle layout, an isometric view and the current camera view, with hidden lines, optional tangent edges and overall dimensions. Written with sdxf.js (vendored from pucejuice/sdxfjs).
 - Phone layout with drawers and a selection chip.

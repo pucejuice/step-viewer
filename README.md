@@ -22,7 +22,7 @@ A static web app for checking fabricators' STEP and IGES models in the browser, 
   - feature edges (true B-rep edges, not angle-guessed);
   - transparency of unselected parts, and ghosting when isolating;
   - section plane on X/Y/Z with slider, flip and caps;
-  - light/dark.
+  - dark background by default, with a light option (remembered on that device).
 - **Measuring:**
   - point-to-point distance snapping to mesh vertices, showing dX, dY, dZ and the true distance;
   - angle between two picked faces;

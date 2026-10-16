@@ -567,7 +567,8 @@ $('#chkDark').addEventListener('change', (e) => setTheme(e.target.checked));
 {
   let saved = null;
   try { saved = localStorage.getItem('sv-theme'); } catch { /* storage unavailable */ }
-  setTheme(saved ? saved === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches);
+  // dark by default; a light/dark choice made with the toolbar button is remembered
+  setTheme(saved ? saved === 'dark' : true);
 }
 
 $$('#sectionAxis button').forEach(b => b.addEventListener('click', () => setSectionAxis(b.dataset.axis)));
