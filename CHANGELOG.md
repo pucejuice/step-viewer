@@ -9,6 +9,7 @@
 - Bodies without a name are listed as "Unnamed solid in <assembly>" in the parts list.
 - Keys `H` hide, `I` isolate, `A` show all.
 - The DXF preview is drawn as an image, so large drawings preview quickly.
+- Start-screen header band and app icons in the facet pattern shared with the sla and ins apps; web app manifest for adding to a phone home screen.
 
 ## v1.0.0 — 2026-10-16
 

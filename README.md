@@ -139,6 +139,10 @@ Also checked in headless Chromium:
 - that the only network requests are to the app's own files;
 - the 4.5 MB sample opens in about 11 s with software rendering, and picking takes about 3 ms.
 
+## Icons and start-screen art
+
+The start screen's header band and the app icons use the slate facet pattern shared with the sla and ins apps. The facet geometry is in `src/brand/mesh.json`. `python scripts/build_icons.py` (needs Pillow) redraws the icons into `public/icons/`: the pattern with a white isometric-cube glyph, including a maskable icon for Android home screens. `public/manifest.webmanifest` lets phones add the app to the home screen.
+
 ## Project layout
 
 ```
@@ -152,6 +156,8 @@ src/partsList.js         grouping and CSV
 src/units.js             STEP/IGES declared unit
 src/dxf/                 projection, hidden lines, DXF/SVG output
 src/vendor/sdxf.js       vendored sdxf.js (generated)
+src/brand/mesh.json      facet pattern for the start screen and icons
+public/icons/            app icons (scripts/build_icons.py)
 samples/                 open sample models
 test/                    Node tests
 ```

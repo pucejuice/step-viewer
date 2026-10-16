@@ -5,10 +5,24 @@ import { sumProps } from './meshAnalysis.js';
 import { groupParts, partsCsv } from './partsList.js';
 import { Measurements } from './measure.js';
 import { buildSheet, sheetToDxf, sheetToCanvas } from './dxf/dxfExport.js';
+import mesh from './brand/mesh.json';
 
 const $ = (s) => document.querySelector(s);
 const $$ = (s) => [...document.querySelectorAll(s)];
 const esc = (s) => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+// ── start screen header band: the facet pattern shared with the sla and ins apps
+{
+  // drawn at its own 3.8 : 1 proportions; "slice" only trims the ends when the band is taller
+  const W = 380, H = 100;
+  const polys = mesh.polys.map(([fill, f]) => {
+    const pts = [];
+    for (let i = 0; i < f.length; i += 2) pts.push(`${(f[i] * W).toFixed(2)},${(f[i + 1] * H).toFixed(2)}`);
+    return `<polygon fill="${fill}" stroke="${fill}" stroke-width="0.3" points="${pts.join(' ')}"/>`;
+  }).join('');
+  document.getElementById('emptyArt').innerHTML =
+    `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid slice"><rect width="${W}" height="${H}" fill="${mesh.bg}"/>${polys}</svg>`;
+}
 
 // ── state ──────────────────────────────────────────────────────────────────
 const viewer = new Viewer($('#canvasHost'));

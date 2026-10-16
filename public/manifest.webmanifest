@@ -1,0 +1,15 @@
+{
+  "name": "STEP Viewer",
+  "short_name": "STEP Viewer",
+  "description": "Open STEP and IGES models in the browser and read part sizes, volumes and masses. Files stay on your device.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#06090B",
+  "theme_color": "#15181c",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
