@@ -559,6 +559,7 @@ function download(blob, name) {
 const stamp = () => new Date().toISOString().slice(0, 16).replace(/[-:]/g, '').replace('T', '-');
 
 // ── UI wiring ──────────────────────────────────────────────────────────────
+$('#btnUploadEmpty').addEventListener('click', () => $('#fileInput').click());
 $('#fileInput').addEventListener('change', (e) => { openFiles([...e.target.files]); e.target.value = ''; });
 $$('#empty [data-sample]').forEach(b => b.addEventListener('click', () => {
   const name = b.dataset.sample;

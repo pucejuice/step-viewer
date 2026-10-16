@@ -1,7 +1,7 @@
 {
   "name": "STEP Viewer",
   "short_name": "STEP Viewer",
-  "description": "Open STEP and IGES models in the browser and read part sizes, volumes and masses. Files stay on your device.",
+  "description": "Open STEP and IGES models in the browser and read part sizes, volumes and masses. Models are opened in your browser and not stored.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",

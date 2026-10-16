@@ -2,11 +2,11 @@
 
 A static web app for checking fabricators' STEP and IGES models in the browser, on a desktop or a phone. Open a file, click a part, and read its name, size, volume and mass. You can also export orthographic and isometric views to DXF.
 
-**Nothing leaves the browser.** Files are read from your device and parsed locally in WebAssembly. There is no upload, no server, no analytics and no CDN. The built page has a Content Security Policy (`default-src 'self'`), so the browser itself blocks requests to any other origin.
+**Models are not stored.** *Upload model* opens a file from your device in this browser tab only. It is read locally in WebAssembly, never sent to or saved on a server, and is gone when the tab is closed or refreshed. There is no upload, no server, no analytics and no CDN. The built page has a Content Security Policy (`default-src 'self'`), so the browser itself blocks requests to any other origin.
 
 ## Features
 
-- **Open:** `.stp .step .igs .iges` by file picker or drag and drop. You can open several files into one scene. Shows progress, and names the file in any error. Shows the file's declared unit; all values are in mm.
+- **Upload model:** `.stp .step .igs .iges` from the **Upload model** button or by drag and drop; the model is opened in the browser and not stored. You can open several files into one scene. Shows progress, and names the file in any error. Shows the file's declared unit; all values are in mm.
 - **Model tree:** the STEP product names (falling back to `Part 1`, `Part 2`…). Each node has visibility, isolate, a colour swatch and a filter box. Tree and 3D selection stay in sync.
 - **Properties** (for one part, an assembly node, or a multi-selection):
   - path and bounding box (size and min/max corners);

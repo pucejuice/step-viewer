@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="referrer" content="no-referrer">
-  <meta name="description" content="Open STEP and IGES models in the browser, click a part and read its size, volume and mass. Files never leave your device.">
+  <meta name="description" content="Open STEP and IGES models in the browser, click a part and read its size, volume and mass. Models are opened in your browser and not stored.">
   <title>STEP Viewer</title>
   <link rel="icon" type="image/png" sizes="32x32" href="./icons/favicon-32.png">
   <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png">
@@ -14,8 +14,8 @@
 <body>
   <header id="toolbar" role="toolbar" aria-label="Main toolbar">
     <button id="btnTree" class="narrow-only" title="Model tree" aria-controls="treePanel">☰ Tree</button>
-    <label class="btn primary" title="Open STEP or IGES files (they stay on this device)">
-      Open<input id="fileInput" type="file" accept=".stp,.step,.igs,.iges" multiple hidden>
+    <label class="btn primary" title="Choose STEP or IGES files from this device. The model is opened in this browser only and is not stored.">
+      Upload model<input id="fileInput" type="file" accept=".stp,.step,.igs,.iges" multiple hidden>
     </label>
     <span class="sep"></span>
     <button id="btnFit" title="Fit all (F)">Fit all</button>
@@ -58,7 +58,9 @@
       <div id="labels"></div>
       <div id="empty">
         <div class="hero"><div id="emptyArt" aria-hidden="true"></div><h1>STEP Viewer</h1></div>
-        <p>Open or drop <b>.step / .stp / .iges / .igs</b> files.<br>Files are read in this browser and never uploaded.</p>
+        <p class="upload-row"><button id="btnUploadEmpty" class="primary big">Upload model</button></p>
+        <p>or drag and drop <b>.step / .stp / .iges / .igs</b> files here.</p>
+        <p class="privacy">Your model is opened in this browser only. It is <b>not stored</b>: nothing is saved to a server or kept after you close or refresh the page.</p>
         <p class="samples">Samples:
           <button data-sample="block_100x50x10.step">Block 100×50×10</button>
           <button data-sample="grating_panel_assembly.step">Grating assembly</button>

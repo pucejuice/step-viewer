@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- **Upload model** button in the toolbar and on the start screen. The start screen now says plainly that the model is opened in the browser and not stored.
 - Dark mode by default; choosing Light is remembered on that device.
 - Parts list: a tick box per group turns all of those parts on or off.
 - **DXF of selection** button draws a single member. DXF files for one part are named after it.
