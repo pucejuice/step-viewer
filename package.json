@@ -1,0 +1,22 @@
+{
+  "name": "step-viewer",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Browser STEP/IGES viewer with click-to-inspect and DXF view export. Runs entirely client-side.",
+  "scripts": {
+    "predev": "node scripts/copy-samples.mjs",
+    "dev": "vite",
+    "prebuild": "node scripts/copy-samples.mjs",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test": "node --test \"test/*.test.js\""
+  },
+  "dependencies": {
+    "occt-import-js": "0.0.23",
+    "three": "0.185.1"
+  },
+  "devDependencies": {
+    "vite": "8.3.1"
+  }
+}

@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="referrer" content="no-referrer">
+  <meta name="description" content="Open STEP and IGES models in the browser, click a part and read its size, volume and mass. Files never leave your device.">
+  <title>STEP Viewer</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M16 2 29 9v14L16 30 3 23V9z' fill='%232f6fdd'/%3E%3Cpath d='M16 2 29 9 16 16 3 9z' fill='%236d9cf0'/%3E%3Cpath d='M16 16v14L3 23V9z' fill='%231d4fa8'/%3E%3C/svg%3E">
+</head>
+<body>
+  <header id="toolbar" role="toolbar" aria-label="Main toolbar">
+    <button id="btnTree" class="narrow-only" title="Model tree" aria-controls="treePanel">☰ Tree</button>
+    <label class="btn primary" title="Open STEP or IGES files (they stay on this device)">
+      Open<input id="fileInput" type="file" accept=".stp,.step,.igs,.iges" multiple hidden>
+    </label>
+    <span class="sep"></span>
+    <button id="btnFit" title="Fit all (F)">Fit all</button>
+    <button id="btnFitSel" title="Fit selection (S)">Fit sel.</button>
+    <select id="viewSelect" title="Standard view" aria-label="Standard view">
+      <option value="">View…</option>
+      <option value="iso">Isometric</option>
+      <option value="front">Front</option>
+      <option value="back">Back</option>
+      <option value="left">Left</option>
+      <option value="right">Right</option>
+      <option value="top">Top</option>
+      <option value="bottom">Bottom</option>
+    </select>
+    <button id="btnOrtho" class="toggle" title="Orthographic / perspective (O)">Ortho</button>
+    <button id="btnEdges" class="toggle on" title="Feature edges (E)">Edges</button>
+    <button id="btnMeasure" class="toggle" title="Measure distance (M)">Measure</button>
+    <button id="btnShot" title="Save a PNG screenshot of the current view">PNG</button>
+    <button id="btnTheme" title="Light / dark background">Dark</button>
+    <span class="grow"></span>
+    <button id="btnPanel" class="narrow-only" title="Properties and tools" aria-controls="sidePanel">Panel ☰</button>
+  </header>
+
+  <main id="layout">
+    <aside id="treePanel" class="panel drawer-left" aria-label="Model tree">
+      <div class="panel-head">
+        <strong>Model</strong>
+        <span class="grow"></span>
+        <button id="btnShowAll" class="small" title="Show all parts">Show all</button>
+        <button id="btnCloseAll" class="small" title="Close all files">Close</button>
+        <button class="small narrow-only drawer-close" data-close="treePanel" aria-label="Close tree">✕</button>
+      </div>
+      <div id="fileList"></div>
+      <input id="treeFilter" type="search" placeholder="Filter parts…" aria-label="Filter parts">
+      <div id="tree" role="tree"></div>
+    </aside>
+
+    <section id="viewport" aria-label="3D view">
+      <div id="canvasHost"></div>
+      <div id="labels"></div>
+      <div id="empty">
+        <h1>STEP Viewer</h1>
+        <p>Open or drop <b>.step / .stp / .iges / .igs</b> files.<br>Files are read in this browser and never uploaded.</p>
+        <p class="samples">Samples:
+          <button data-sample="block_100x50x10.step">Block 100×50×10</button>
+          <button data-sample="grating_panel_assembly.step">Grating assembly</button>
+          <button data-sample="grating_panel_large.step">Large panel (4.5 MB)</button>
+          <button data-sample="block_100x50x10.igs">Block (IGES)</button>
+        </p>
+      </div>
+      <div id="dropHint">Drop STEP / IGES files to open</div>
+      <div id="progress" hidden>
+        <div id="progressText"></div>
+        <div class="bar"><div id="progressBar"></div></div>
+      </div>
+      <div id="measureHint" hidden></div>
+      <button id="selChip" class="narrow-only" hidden></button>
+      <div id="toasts" aria-live="polite"></div>
+    </section>
+
+    <aside id="sidePanel" class="panel drawer-right" aria-label="Properties and tools">
+      <nav class="tabs" role="tablist">
+        <button role="tab" data-tab="props" class="active">Properties</button>
+        <button role="tab" data-tab="parts">Parts list</button>
+        <button role="tab" data-tab="view">View</button>
+        <button role="tab" data-tab="measure">Measure</button>
+        <button role="tab" data-tab="export">DXF</button>
+        <button class="small narrow-only drawer-close" data-close="sidePanel" aria-label="Close panel">✕</button>
+      </nav>
+
+      <div class="tab" id="tab-props">
+        <div id="props"><p class="muted">Click a part in the view or the tree.</p></div>
+        <div class="material">
+          <label>Material
+            <select id="material">
+              <option value="2700">Aluminium (2700 kg/m³)</option>
+              <option value="7850" selected>Steel (7850 kg/m³)</option>
+              <option value="8000">Stainless steel (8000 kg/m³)</option>
+              <option value="custom">Custom…</option>
+            </select>
+          </label>
+          <label id="customDensityWrap" hidden>Density (kg/m³)
+            <input id="customDensity" type="number" min="0" step="any" value="1000" inputmode="decimal">
+          </label>
+        </div>
+        <div class="row">
+          <button id="btnCopy">Copy properties</button>
+          <button id="btnIsolateSel">Isolate</button>
+          <button id="btnHideSel">Hide</button>
+          <button id="btnClearSel">Clear</button>
+        </div>
+        <p class="muted small">Tip: Ctrl/Shift-click or long-press to select several parts.</p>
+      </div>
+
+      <div class="tab" id="tab-parts" hidden>
+        <div class="row">
+          <label class="check"><input id="groupGeom" type="checkbox" checked> Group same size &amp; volume (±0.5 %)</label>
+          <label class="check"><input id="partsVisibleOnly" type="checkbox"> Visible only</label>
+        </div>
+        <div id="partsTableWrap"><table id="partsTable"></table></div>
+        <div class="row"><button id="btnCsv">Export CSV</button></div>
+      </div>
+
+      <div class="tab" id="tab-view" hidden>
+        <h3>Standard views</h3>
+        <div class="grid3">
+          <button data-view="top">Top</button><button data-view="front">Front</button><button data-view="iso">Iso</button>
+          <button data-view="left">Left</button><button data-view="right">Right</button><button data-view="back">Back</button>
+          <button data-view="bottom">Bottom</button>
+        </div>
+        <h3>Display</h3>
+        <label class="check"><input id="chkOrtho" type="checkbox"> Orthographic camera</label>
+        <label class="check"><input id="chkEdges" type="checkbox" checked> Feature edges</label>
+        <label class="check"><input id="chkGhost" type="checkbox"> Ghost others when isolating</label>
+        <label>Transparency of unselected parts
+          <input id="opacity" type="range" min="0.05" max="1" step="0.05" value="1"></label>
+        <label class="check"><input id="chkDark" type="checkbox"> Dark background</label>
+        <h3>Section plane</h3>
+        <div class="seg" id="sectionAxis">
+          <button data-axis="" class="active">Off</button><button data-axis="x">X</button><button data-axis="y">Y</button><button data-axis="z">Z</button>
+        </div>
+        <label>Position <span id="sectionValue">–</span>
+          <input id="sectionSlider" type="range" min="0" max="1000" value="500" disabled></label>
+        <label class="check"><input id="chkFlip" type="checkbox"> Flip side</label>
+        <label class="check"><input id="chkCaps" type="checkbox" checked> Fill cut faces (caps)</label>
+        <h3>Meshing (for files opened next)</h3>
+        <select id="quality">
+          <option value="coarse">Coarse – fastest</option>
+          <option value="normal" selected>Normal</option>
+          <option value="fine">Fine – most accurate volumes</option>
+        </select>
+      </div>
+
+      <div class="tab" id="tab-measure" hidden>
+        <div class="seg" id="measureMode">
+          <button data-mode="" class="active">Off</button><button data-mode="distance">Distance</button><button data-mode="angle">Face angle</button>
+        </div>
+        <p class="muted small">Distance: click two points, snaps to mesh vertices. Face angle: click two faces.</p>
+        <ol id="measureList"></ol>
+        <div class="row"><button id="btnClearMeasure">Clear all</button></div>
+      </div>
+
+      <div class="tab" id="tab-export" hidden>
+        <p class="muted small">2D drawing of the visible parts (or the selection), 1:1 in mm, with hidden lines. Line work comes from the mesh edges and silhouettes, so curves are polylines.</p>
+        <h3>Views</h3>
+        <div class="checks">
+          <label class="check"><input type="checkbox" name="dxfView" value="front" checked> Front</label>
+          <label class="check"><input type="checkbox" name="dxfView" value="top" checked> Top</label>
+          <label class="check"><input type="checkbox" name="dxfView" value="right" checked> Right</label>
+          <label class="check"><input type="checkbox" name="dxfView" value="left"> Left</label>
+          <label class="check"><input type="checkbox" name="dxfView" value="bottom"> Bottom</label>
+          <label class="check"><input type="checkbox" name="dxfView" value="back"> Back</label>
+          <label class="check"><input type="checkbox" name="dxfView" value="iso" checked> Isometric</label>
+          <label class="check"><input type="checkbox" name="dxfView" value="current"> Current camera view</label>
+        </div>
+        <label>Projection
+          <select id="dxfAngle">
+            <option value="first">First angle (ISO E)</option>
+            <option value="third">Third angle (ISO A / ANSI)</option>
+          </select></label>
+        <label>Parts
+          <select id="dxfScope">
+            <option value="visible">All visible parts</option>
+            <option value="selection">Selection only</option>
+          </select></label>
+        <label class="check"><input id="dxfHidden" type="checkbox" checked> Hidden lines (dashed, layer HIDDEN)</label>
+        <label class="check"><input id="dxfTangent" type="checkbox"> Tangent edges</label>
+        <label class="check"><input id="dxfDims" type="checkbox" checked> Overall dimensions</label>
+        <label class="check"><input id="dxfIsoTrue" type="checkbox" checked> Isometric axes at true length (×1.225)</label>
+        <label>Accuracy of hidden-line test
+          <select id="dxfRes">
+            <option value="2048">Standard (2048 px)</option>
+            <option value="4096" selected>High (4096 px)</option>
+          </select></label>
+        <div class="row"><button id="btnDxfPreview" class="primary">Generate</button><button id="btnDxfDownload" disabled>Download DXF</button></div>
+        <div id="dxfStatus" class="muted small"></div>
+        <div id="dxfPreview"></div>
+      </div>
+    </aside>
+  </main>
+  <script type="module" src="./src/main.js"></script>
+</body>
+</html>
