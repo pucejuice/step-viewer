@@ -85,3 +85,12 @@ test('hidden-line projection of the block (synthetic depth image)', () => {
   assert.equal(loops.length, 1);
   assert.ok(loops[0].closed && loops[0].pts.length === 4, 'outline is one closed rectangle');
 });
+
+test('isometric corners: 8 distinct diagonals, nearest-corner match', async () => {
+  const { CORNERS, cornerByKey, nearestCorner } = await import('../src/corners.js');
+  assert.equal(CORNERS.length, 8);
+  assert.equal(new Set(CORNERS.map(c => c.dir.join())).size, 8);
+  assert.deepEqual(cornerByKey('tfr').dir, [-1, 1, -1], 'top front right looks down, back and left');
+  assert.equal(nearestCorner([0.4, -0.6, 0.7]).key, 'bkl');
+  assert.equal(cornerByKey('nonsense').key, 'tfr', 'unknown keys fall back to the default');
+});

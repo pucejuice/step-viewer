@@ -199,7 +199,7 @@ export class Viewer {
 
   visibleIds() { return this.parts.filter(p => p && p.mesh.visible).map(p => p.id); }
 
-  fit(ids, dir = null, up = null) {
+  fit(ids, dir = null, up = null, { animate = false } = {}) {
     if (!ids || !ids.length) ids = this.visibleIds();
     if (!ids.length) return;
     const box = this.boundsOf(ids);
@@ -211,7 +211,6 @@ export class Viewer {
       : new THREE.Vector3().subVectors(this.controls.target, this.camera.position).normalize();
     // The orbit controls keep +Z up. For top/bottom views (view ∥ Z) tilt the
     // view by a hair so that the requested `up` ends up at the top of the screen.
-    this.camera.up.set(0, 0, 1);
     if (Math.abs(d.z) > 0.9999) {
       const u = up ? new THREE.Vector3(...up) : new THREE.Vector3(0, 1, 0);
       d.addScaledVector(u, -1e-4 * Math.sign(d.z)).normalize();
@@ -221,18 +220,48 @@ export class Viewer {
     const hfov = 2 * Math.atan(Math.tan(vfov / 2) * this.persp.aspect);
     const fov = Math.min(vfov, hfov);
     const dist = r / Math.sin(fov / 2) * 1.1;
+    const end = { target: target.clone(), offset: d.clone().multiplyScalar(-dist), half: r * 1.1 * Math.max(1, 1 / this.persp.aspect) };
+    this.sceneRadius = Math.max(this.sceneRadius || 0, r);
+    cancelAnimationFrame(this._anim);
+    if (!animate) { this._applyView(end.target, end.offset, end.half); return; }
+    // swing the camera round the model (used by the view cube)
+    const start = {
+      target: this.controls.target.clone(),
+      offset: new THREE.Vector3().subVectors(this.camera.position, this.controls.target),
+      half: (this._orthoHalf || end.half) / this.ortho.zoom,
+    };
+    const u0 = start.offset.clone().normalize(), u1 = end.offset.clone().normalize();
+    // rotation between the two view directions (about Z for exact opposites)
+    const q = u0.dot(u1) < -0.9999
+      ? new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), Math.PI)
+      : new THREE.Quaternion().setFromUnitVectors(u0, u1);
+    const t0 = performance.now(), ms = 320;
+    const step = () => {
+      const t = Math.min(1, (performance.now() - t0) / ms);
+      const e = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+      const qt = new THREE.Quaternion().slerp(q, e);
+      const len = THREE.MathUtils.lerp(start.offset.length(), end.offset.length(), e);
+      const offset = u0.clone().applyQuaternion(qt).multiplyScalar(len);
+      if (t >= 1) { this._applyView(end.target, end.offset, end.half); return; }
+      this._applyView(start.target.clone().lerp(end.target, e), offset, THREE.MathUtils.lerp(start.half, end.half, e));
+      this._anim = requestAnimationFrame(step);
+    };
+    step();
+  }
+
+  _applyView(target, offset, half) {
+    const dist = offset.length();
     for (const c of [this.persp, this.ortho]) {
-      c.position.copy(target).addScaledVector(d, -dist);
-      c.up.copy(this.camera.up);
+      c.up.set(0, 0, 1);
+      c.position.copy(target).add(offset);
       c.lookAt(target);
     }
     this.persp.near = Math.max(dist / 1000, 0.01); this.persp.far = dist * 100; this.persp.updateProjectionMatrix();
-    this._orthoHalf = r * 1.1 * Math.max(1, 1 / this.persp.aspect);
+    this._orthoHalf = half;
     this.ortho.zoom = 1;
     this._updateOrthoFrustum();
     this.controls.target.copy(target);
     this.controls.update();
-    this.sceneRadius = Math.max(this.sceneRadius || 0, r);
     this.requestRender();
   }
 

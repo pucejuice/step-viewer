@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- DXF isometric can be drawn from any of the 8 corners: picker with cube icons in the DXF tab, plus *Match 3D view*. The view label names the corner, and the choice is remembered.
+- View cube in the 3D view: click a face, edge or corner to swing the camera to that side. The corners match the DXF corner names.
 - **Upload model** button in the toolbar and on the start screen. The start screen now says plainly that the model is opened in the browser and not stored.
 - Dark mode by default; choosing Light is remembered on that device.
 - Parts list: a tick box per group turns all of those parts on or off.

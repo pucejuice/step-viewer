@@ -6,6 +6,8 @@ import { groupParts, partsCsv } from './partsList.js';
 import { Measurements } from './measure.js';
 import { buildSheet, sheetToDxf, sheetToCanvas } from './dxf/dxfExport.js';
 import mesh from './brand/mesh.json';
+import { CORNERS, cornerByKey, cornerIcon, nearestCorner, DEFAULT_CORNER } from './corners.js';
+import { ViewCube } from './viewCube.js';
 
 const $ = (s) => document.querySelector(s);
 const $$ = (s) => [...document.querySelectorAll(s)];
@@ -26,6 +28,7 @@ const esc = (s) => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt
 
 // ── state ──────────────────────────────────────────────────────────────────
 const viewer = new Viewer($('#canvasHost'));
+const viewCube = new ViewCube($('#viewport'), viewer, ({ dir, up }) => viewer.fit(null, dir, up, { animate: true }));
 const measure = new Measurements(viewer, $('#labels'), $('#measureList'), $('#measureHint'));
 const parts = [];      // index = part id
 const nodes = [];      // index = node id: { id, name, parent, children, partIds, el, row, expanded }
@@ -529,7 +532,7 @@ async function generateDxf() {
     const sheet = await buildSheet(viewer.renderer, sel, {
       views, angle: $('#dxfAngle').value, hidden: hiddenOn, tangentEdges: $('#dxfTangent').checked,
       dims: $('#dxfDims').checked, isoTrueLength: $('#dxfIsoTrue').checked, resolution: +$('#dxfRes').value,
-      current: viewer.viewBasis(),
+      current: viewer.viewBasis(), isoCorner: $('#dxfIsoCorner').value,
     }, (msg) => { $('#dxfStatus').textContent = msg + '…'; });
     const base = (files.length === 1 ? files[0].name : 'models').replace(/\.[^.]+$/, '');
     const title = scope === 'selection' && ids.length === 1 ? `${base} – ${parts[ids[0]].name}` : base;
@@ -598,6 +601,7 @@ $('#opacity').addEventListener('input', (e) => { viewer.opacityOthers = +e.targe
 function setTheme(dark) {
   document.documentElement.dataset.theme = dark ? 'dark' : 'light';
   viewer.setTheme(dark ? 'dark' : 'light');
+  viewCube.setTheme(dark);
   $('#btnTheme').textContent = dark ? 'Light' : 'Dark';
   $('#chkDark').checked = dark;
   try { localStorage.setItem('sv-theme', dark ? 'dark' : 'light'); } catch { /* storage unavailable */ }
@@ -670,7 +674,7 @@ $('#btnDxfPreview').addEventListener('click', generateDxf);
 
 // DXF settings: remembered per device (browser storage only; nothing is sent anywhere)
 const DXF_KEY = 'sv-dxf-settings';
-const DXF_FIELDS = ['dxfHidden', 'dxfAngle', 'dxfScope', 'dxfTangent', 'dxfDims', 'dxfIsoTrue', 'dxfRes'];
+const DXF_FIELDS = ['dxfHidden', 'dxfIsoCorner', 'dxfAngle', 'dxfScope', 'dxfTangent', 'dxfDims', 'dxfIsoTrue', 'dxfRes'];
 const HIDDEN_NOTES = {
   auto: 'Auto: dashed hidden lines (layer HIDDEN) for up to 40 parts, none for bigger drawings.',
   on: 'On: hidden lines are always drawn, dashed on layer HIDDEN. Big assemblies can make very large files.',
@@ -683,6 +687,22 @@ function readDxfSettings() {
   o.views = $$('input[name="dxfView"]').filter(i => i.checked).map(i => i.value);
   return o;
 }
+// isometric corner picker: 8 buttons, each a small cube with that corner marked
+$('#isoCorners').innerHTML = CORNERS.map(c => `<button data-corner="${c.key}" role="radio" title="Isometric from the ${c.label.toLowerCase()} corner" aria-label="${c.label}">${cornerIcon(c.key, 40)}<span>${c.label}</span></button>`).join('');
+function setIsoCorner(key) {
+  const c = cornerByKey(key);
+  $('#dxfIsoCorner').value = c.key;
+  $$('#isoCorners button').forEach(b => { const on = b.dataset.corner === c.key; b.classList.toggle('active', on); b.setAttribute('aria-checked', on); });
+  $('#isoCornerLabel').textContent = `From the ${c.label.toLowerCase()} corner`;
+}
+setIsoCorner(DEFAULT_CORNER);
+$$('#isoCorners button').forEach(b => b.addEventListener('click', () => { setIsoCorner(b.dataset.corner); saveDxfSettings(); }));
+$('#btnIsoMatch').addEventListener('click', () => {
+  setIsoCorner(nearestCorner(viewer.viewBasis().dir).key);
+  saveDxfSettings();
+  toast(`Isometric set to ${cornerByKey($('#dxfIsoCorner').value).label.toLowerCase()}`, '', 2000);
+});
+
 function setHiddenMode(mode) {
   $('#dxfHidden').value = mode;
   $$('#dxfHiddenSeg button').forEach(b => b.classList.toggle('active', b.dataset.hidden === mode));
@@ -693,9 +713,10 @@ function applyDxfSettings(o) {
     if (!(id in o)) continue;
     const el = document.getElementById(id);
     if (el.type === 'checkbox') el.checked = !!o[id];
-    else if (id !== 'dxfHidden' && [...el.options].some(op => op.value === String(o[id]))) el.value = o[id];
+    else if (el.tagName === 'SELECT' && [...el.options].some(op => op.value === String(o[id]))) el.value = o[id];
   }
   if (['auto', 'on', 'off'].includes(o.dxfHidden)) setHiddenMode(o.dxfHidden);
+  if (CORNERS.some(c => c.key === o.dxfIsoCorner)) setIsoCorner(o.dxfIsoCorner);
   if (Array.isArray(o.views)) $$('input[name="dxfView"]').forEach(i => { i.checked = o.views.includes(i.value); });
 }
 function saveDxfSettings() {
@@ -749,4 +770,4 @@ window.addEventListener('keydown', (e) => {
 });
 
 // exposed for automated acceptance tests only (no network, no side effects)
-window.__stepViewer = { viewer, parts, nodes, files, measure, openFiles, selectPart, generateDxf, getDxf: () => dxfText, setSectionAxis };
+window.__stepViewer = { viewer, viewCube, parts, nodes, files, measure, openFiles, selectPart, generateDxf, getDxf: () => dxfText, setSectionAxis };

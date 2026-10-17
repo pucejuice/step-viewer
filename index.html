@@ -183,6 +183,10 @@
           <label class="check"><input type="checkbox" name="dxfView" value="iso" checked> Isometric</label>
           <label class="check"><input type="checkbox" name="dxfView" value="current"> Current camera view</label>
         </div>
+        <h3>Isometric seen from</h3>
+        <div id="isoCorners" class="corner-grid" role="radiogroup" aria-label="Isometric corner"></div>
+        <input type="hidden" id="dxfIsoCorner" value="tfr">
+        <div class="row"><span id="isoCornerLabel" class="muted small"></span><span class="grow"></span><button id="btnIsoMatch" class="small" title="Pick the corner closest to the 3D view">Match 3D view</button></div>
         <label>Projection
           <select id="dxfAngle">
             <option value="first">First angle (ISO E)</option>

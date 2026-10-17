@@ -3,6 +3,7 @@
 import { Drawing, Layer, LineType, Style, Line, LwPolyLine, Text, Solid } from '../vendor/sdxf.js';
 import { viewFrame, collectEdges, projectedBounds, classify, cleanup, chain } from './projector.js';
 import { renderDepth } from './depthRender.js';
+import { cornerByKey } from '../corners.js';
 
 export const DXF_VIEWS = {
   front: { label: 'FRONT', dir: [0, 1, 0], up: [0, 0, 1] },
@@ -52,7 +53,7 @@ function transformView(v, scale, dx, dy) {
 
 /**
  * Lay out the requested views. Returns { views: [{ key, label, visible, hidden, bounds, dims }], textHeight }.
- * opts: { views: ['front','top',...], angle: 'first'|'third', isoTrueLength, gap, dims }
+ * opts: { views: ['front','top',...], angle: 'first'|'third', isoCorner: 'tfr'|..., isoTrueLength, gap, dims }
  */
 export async function buildSheet(renderer, parts, opts, onProgress = () => {}) {
   const keys = opts.views.filter(k => DXF_VIEWS[k] || k === 'current');
@@ -61,7 +62,7 @@ export async function buildSheet(renderer, parts, opts, onProgress = () => {}) {
   for (const k of keys) {
     onProgress(`Projecting ${k === 'current' ? 'current view' : DXF_VIEWS[k].label.toLowerCase()} (${++i}/${keys.length})`);
     await yieldUI();
-    const v = k === 'current' ? opts.current : DXF_VIEWS[k];
+    const v = k === 'current' ? opts.current : k === 'iso' ? cornerByKey(opts.isoCorner) : DXF_VIEWS[k];
     proj[k] = await projectView(renderer, parts, v.dir, v.up, opts);
   }
   const all = Object.values(proj).map(v => v.bounds);
@@ -106,7 +107,7 @@ export async function buildSheet(renderer, parts, opts, onProgress = () => {}) {
     maxX = placed[k].bounds.xmax;
   }
   const views = keys.map(k => ({
-    key: k, label: k === 'current' ? 'VIEW' : DXF_VIEWS[k].label, ...placed[k],
+    key: k, label: k === 'current' ? 'VIEW' : k === 'iso' ? `ISOMETRIC FROM ${cornerByKey(opts.isoCorner).label.toUpperCase()}` : DXF_VIEWS[k].label, ...placed[k],
     dims: opts.dims && k !== 'iso' && k !== 'current' ? { w: W(proj[k].bounds), h: H(proj[k].bounds) } : null,
   }));
   return { views, textHeight };
