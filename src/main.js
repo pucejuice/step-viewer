@@ -8,6 +8,7 @@ import { buildSheet, sheetToDxf, sheetToCanvas } from './dxf/dxfExport.js';
 import mesh from './brand/mesh.json';
 import { CORNERS, cornerByKey, cornerIcon, nearestCorner, DEFAULT_CORNER } from './corners.js';
 import { ViewCube } from './viewCube.js';
+import { prefixGroups } from './treeGroups.js';
 
 const $ = (s) => document.querySelector(s);
 const $$ = (s) => [...document.querySelectorAll(s)];
@@ -209,6 +210,7 @@ function closeAll() {
   measure.clear();
   parts.length = 0; nodes.length = 0; files.length = 0; nameColor.clear();
   partCounter = 0;
+  userGroups.length = 0; userGroupCounter = 0; groupOpen.clear(); anchorItem = null;
   selectedNode = null;
   renderFiles(); renderTree(); renderProps(); renderParts();
   $('#empty').hidden = false;
@@ -227,51 +229,116 @@ function nodePath(n) {
   return names.join(' / ');
 }
 
+// Tree rows are real nodes or name-prefix groups (see treeGroups.js). Both have
+// { name, children, partIds, parent }, so nodeParts / nodePath work on either.
+const groupOpen = new Map();   // group key -> expanded
+const groupOfNode = new Map(); // node id -> group key (from the last render)
+let treeRows = [];             // items in on-screen order, for Shift-click ranges
+let anchorItem = null;         // last plainly / Ctrl-clicked row
+
+function displayChildren(n) {
+  if (!$('#treeGroupByName').checked || n.children.length < 3) return n.children;
+  const groups = prefixGroups(n.children.map(c => c.name), 3);
+  if (!groups.length) return n.children;
+  const inGroup = new Map();
+  for (const g of groups) {
+    const key = n.id + '|' + g.key;
+    const item = { isGroup: true, key, name: g.label, parent: n, partIds: [], children: g.members.map(i => n.children[i]) };
+    for (const c of item.children) { inGroup.set(c, item); groupOfNode.set(c.id, key); }
+  }
+  const out = [];
+  for (const c of n.children) {
+    const g = inGroup.get(c);
+    if (!g) out.push(c);
+    else if (!out.includes(g)) out.push(g);
+  }
+  return out;
+}
+const isOpen = (item) => item.isGroup ? !!groupOpen.get(item.key) : !!item.expanded;
+function setOpen(item, open) { if (item.isGroup) groupOpen.set(item.key, open); else item.expanded = open; }
+
+/** One tree row: caret, visibility, colour, name, isolate. */
+function makeRow(item, depth, { hasKids, open, title, extra = '' }) {
+  const row = document.createElement('div');
+  row.className = 'row-n' + (item.isGroup ? ' group' : '');
+  row.style.paddingLeft = (depth * 14) + 'px';
+  const ids = item.ids || nodeParts(item);
+  const anyVisible = ids.some(id => parts[id].visible);
+  const color = ids.length ? '#' + parts[ids[0]].color.getHexString() : '#999999';
+  row.innerHTML = `<span class="caret">${hasKids ? (open ? '▾' : '▸') : ''}</span>
+    <input type="checkbox" class="vis" title="Show / hide (applies to the whole selection when this row is selected)" ${anyVisible ? 'checked' : ''}>
+    <input type="color" class="swatch" title="Colour" value="${color}">
+    <span class="name ${anyVisible ? '' : 'hidden-part'}" title="${esc(title)}">${item.isGroup ? '<span class="gtag" title="Grouped by name">⧉</span> ' : ''}${esc(item.name)}${ids.length > 1 ? ` <span class="muted">(${ids.length})</span>` : ''}</span>
+    <button class="iso small" title="Isolate">Isolate</button>${extra}`;
+  row.querySelector('.vis').addEventListener('click', (e) => {
+    e.stopPropagation();
+    // a selected row's tick box switches the whole selection
+    const sel = viewer.selected;
+    const target = ids.length && ids.every(id => sel.has(id)) && sel.size > ids.length ? [...sel] : ids;
+    for (const id of target) parts[id].visible = e.target.checked;
+    afterVisibilityChange();
+  });
+  row.querySelector('.swatch').addEventListener('click', (e) => e.stopPropagation());
+  row.querySelector('.swatch').addEventListener('input', (e) => {
+    for (const id of ids) parts[id].color.set(e.target.value);
+    viewer.refreshAppearance();
+  });
+  row.querySelector('.iso').addEventListener('click', (e) => { e.stopPropagation(); isolate(ids); });
+  row.addEventListener('click', (e) => clickRow(item, e));
+  item.row = row;
+  return row;
+}
+
+/** Plain click selects the row, Ctrl/Cmd-click toggles it, Shift-click selects a range. */
+function clickRow(item, e) {
+  const ids = item.ids || nodeParts(item);
+  if (e.shiftKey && anchorItem && treeRows.includes(anchorItem) && treeRows.includes(item)) {
+    const a = treeRows.indexOf(anchorItem), b = treeRows.indexOf(item);
+    const range = treeRows.slice(Math.min(a, b), Math.max(a, b) + 1);
+    selectedNode = null;
+    setSelection([...new Set(range.flatMap(r => r.ids || nodeParts(r)))], e.ctrlKey || e.metaKey);
+    return;
+  }
+  anchorItem = item;
+  if (e.ctrlKey || e.metaKey) {
+    selectedNode = null;
+    const all = ids.every(id => viewer.selected.has(id));
+    for (const id of ids) { if (all) viewer.selected.delete(id); else viewer.selected.add(id); }
+    setSelection([], true);
+    return;
+  }
+  if (item.isUserGroup) { selectedNode = null; setSelection(ids, false); viewer.fit(ids); return; }
+  selectNode(item, false, true);
+}
+
 function renderTree() {
   const host = $('#tree');
   host.innerHTML = '';
+  groupOfNode.clear();
+  treeRows = [];
+  renderUserGroups();
   const filter = $('#treeFilter').value.trim().toLowerCase();
   const matches = (n) => !filter || n.name.toLowerCase().includes(filter) || n.children.some(matches);
-  const build = (n, depth, parentEl) => {
-    if (!matches(n)) return;
+  const build = (item, depth, parentEl) => {
+    if (!matches(item)) return;
     const el = document.createElement('div');
     el.className = 'node';
     el.setAttribute('role', 'treeitem');
-    const row = document.createElement('div');
-    row.className = 'row-n';
-    row.style.paddingLeft = (depth * 14) + 'px';
-    const ids = nodeParts(n);
-    const hasKids = n.children.length > 0;
-    const anyVisible = ids.some(id => parts[id].visible);
-    const color = ids.length ? '#' + parts[ids[0]].color.getHexString() : '#999999';
-    row.innerHTML = `<span class="caret">${hasKids ? (n.expanded || filter ? '▾' : '▸') : ''}</span>
-      <input type="checkbox" class="vis" title="Show / hide" ${anyVisible ? 'checked' : ''}>
-      <input type="color" class="swatch" title="Colour" value="${color}">
-      <span class="name ${anyVisible ? '' : 'hidden-part'}" title="${esc(nodePath(n))}">${esc(n.name)}${ids.length > 1 ? ` <span class="muted">(${ids.length})</span>` : ''}</span>
-      <button class="iso small" title="Isolate">Isolate</button>`;
+    const kids = item.isGroup ? item.children : displayChildren(item);
+    const hasKids = kids.length > 0;
+    const open = isOpen(item) || !!filter;
+    const row = makeRow(item, depth, { hasKids, open, title: item.isGroup ? `${item.children.length} members starting "${item.name}"` : nodePath(item) });
     el.appendChild(row);
-    n.el = el; n.row = row;
-    row.querySelector('.caret').addEventListener('click', (e) => { e.stopPropagation(); n.expanded = !n.expanded; renderTree(); });
-    row.querySelector('.vis').addEventListener('click', (e) => {
-      e.stopPropagation();
-      const on = e.target.checked;
-      for (const id of ids) parts[id].visible = on;
-      afterVisibilityChange();
-    });
-    row.querySelector('.swatch').addEventListener('click', (e) => e.stopPropagation());
-    row.querySelector('.swatch').addEventListener('input', (e) => {
-      for (const id of ids) parts[id].color.set(e.target.value);
-      viewer.refreshAppearance();
-    });
-    row.querySelector('.iso').addEventListener('click', (e) => { e.stopPropagation(); isolate(ids); });
-    row.addEventListener('click', (e) => selectNode(n, e.ctrlKey || e.metaKey || e.shiftKey, true));
-    row.addEventListener('dblclick', () => { n.expanded = !n.expanded; renderTree(); });
+    treeRows.push(item);
+    item.el = el;
+    row.querySelector('.caret').addEventListener('click', (e) => { e.stopPropagation(); setOpen(item, !isOpen(item)); renderTree(); });
+    row.addEventListener('dblclick', () => { setOpen(item, !isOpen(item)); renderTree(); });
     if (hasKids) {
-      const kids = document.createElement('div');
-      kids.className = 'children';
-      kids.hidden = !(n.expanded || filter);
-      n.children.forEach(c => build(c, depth + 1, kids));
-      el.appendChild(kids);
+      const box = document.createElement('div');
+      box.className = 'children';
+      box.hidden = !open;
+      if (open) kids.forEach(c => build(c, depth + 1, box));
+      el.appendChild(box);
     }
     parentEl.appendChild(el);
   };
@@ -280,22 +347,84 @@ function renderTree() {
 }
 
 function syncTreeSelection(scroll) {
-  for (const n of nodes) {
-    if (!n.row) continue;
-    const ids = nodeParts(n);
-    const sel = n === selectedNode || (ids.length > 0 && n.partIds.length > 0 && n.children.length === 0 && ids.every(id => viewer.selected.has(id)));
-    n.row.classList.toggle('selected', sel);
+  const sel = viewer.selected;
+  let first = null;
+  for (const item of treeRows) {
+    const ids = nodeParts(item);
+    const on = item === selectedNode || (ids.length > 0 && ids.every(id => sel.has(id)) && (item.isGroup || item.children.length === 0 || item === selectedNode));
+    item.row.classList.toggle('selected', on);
+    if (on && !first) first = item;
   }
-  if (scroll) {
-    const first = nodes.find(n => n.row && n.row.classList.contains('selected'));
-    if (first) first.row.scrollIntoView({ block: 'nearest' });
-  }
+  for (const g of userGroups) if (g.row) g.row.classList.toggle('selected', g.ids.length > 0 && g.ids.every(id => sel.has(id)));
+  if (scroll && first) first.row.scrollIntoView({ block: 'nearest' });
+  renderSelBar();
 }
 
 function expandTo(node) {
   let changed = false;
-  for (let x = node.parent; x; x = x.parent) if (!x.expanded) { x.expanded = true; changed = true; }
-  if (changed) renderTree();
+  for (let x = node; x; x = x.parent) {
+    if (x !== node && !x.expanded) { x.expanded = true; changed = true; }
+    const gk = groupOfNode.get(x.id);
+    if (gk && !groupOpen.get(gk)) { groupOpen.set(gk, true); changed = true; }
+  }
+  if (changed) {
+    renderTree();
+    // groups inside newly opened branches are only known after this render
+    for (let x = node; x; x = x.parent) {
+      const gk = groupOfNode.get(x.id);
+      if (gk && !groupOpen.get(gk)) { groupOpen.set(gk, true); renderTree(); break; }
+    }
+  }
+}
+
+// ── selection bar and user groups ──────────────────────────────────────────
+const userGroups = []; // { id, name, ids: [] }
+let userGroupCounter = 0;
+
+function renderSelBar() {
+  const n = viewer.selected.size;
+  const bar = $('#selBar');
+  bar.hidden = n === 0;
+  if (n) $('#selCount').textContent = `${n} selected`;
+}
+
+function groupSelection() {
+  const ids = [...viewer.selected];
+  if (!ids.length) { toast('Select parts first (Ctrl/Shift-click in the tree or the view)'); return; }
+  const def = `Group ${userGroupCounter + 1}`;
+  let name = def;
+  try { name = (window.prompt('Name for the new group', def) ?? '').trim(); } catch { name = def; }
+  if (name === '') return; // cancelled
+  userGroupCounter++;
+  userGroups.push({ id: userGroupCounter, name, ids, isUserGroup: true, children: [], partIds: ids });
+  renderUserGroups();
+  syncTreeSelection(false);
+  toast(`Group "${name}" made from ${ids.length} part${ids.length === 1 ? '' : 's'}`, '', 2500);
+}
+
+function renderUserGroups() {
+  const host = $('#userGroups');
+  host.innerHTML = '';
+  host.hidden = userGroups.length === 0;
+  if (!userGroups.length) return;
+  const head = document.createElement('div');
+  head.className = 'ug-head';
+  head.innerHTML = '<strong>Groups</strong><span class="muted small">double-click a name to rename</span>';
+  host.appendChild(head);
+  for (const g of userGroups) {
+    const row = makeRow(g, 0, { hasKids: false, open: false, title: `${g.name}: ${g.ids.length} parts`, extra: '<button class="small ug-del" title="Remove this group (the parts stay)">✕</button>' });
+    row.querySelector('.ug-del').addEventListener('click', (e) => {
+      e.stopPropagation();
+      userGroups.splice(userGroups.indexOf(g), 1);
+      renderUserGroups();
+    });
+    row.addEventListener('dblclick', () => {
+      let name = null;
+      try { name = window.prompt('Rename group', g.name); } catch { /* prompt unavailable */ }
+      if (name && name.trim()) { g.name = name.trim(); renderUserGroups(); syncTreeSelection(false); }
+    });
+    host.appendChild(row);
+  }
 }
 
 // ── selection ──────────────────────────────────────────────────────────────
@@ -658,6 +787,16 @@ $('#btnClearSel').addEventListener('click', () => { selectedNode = null; setSele
 $('#btnShowAll').addEventListener('click', showAll);
 $('#btnCloseAll').addEventListener('click', closeAll);
 $('#treeFilter').addEventListener('input', renderTree);
+try { const g = localStorage.getItem('sv-tree-group'); if (g !== null) $('#treeGroupByName').checked = g === '1'; } catch { /* storage unavailable */ }
+$('#treeGroupByName').addEventListener('change', (e) => {
+  try { localStorage.setItem('sv-tree-group', e.target.checked ? '1' : '0'); } catch { /* storage unavailable */ }
+  renderTree();
+});
+$('#selHide').addEventListener('click', () => hideSelection());
+$('#selShow').addEventListener('click', () => { for (const id of viewer.selected) parts[id].visible = true; afterVisibilityChange(); });
+$('#selIso').addEventListener('click', () => { if (viewer.selected.size) isolate([...viewer.selected]); });
+$('#selGroup').addEventListener('click', groupSelection);
+$('#selClear').addEventListener('click', () => { selectedNode = null; setSelection([], false); });
 $('#material').addEventListener('change', () => {
   $('#customDensityWrap').hidden = $('#material').value !== 'custom';
   renderProps(); renderParts();
@@ -766,6 +905,7 @@ window.addEventListener('keydown', (e) => {
   else if (k === 'h') hideSelection();
   else if (k === 'i') { if (viewer.selected.size) isolate([...viewer.selected]); }
   else if (k === 'a') showAll();
+  else if (k === 'g') groupSelection();
   else if (k === 'escape') { if (measure.mode) setMeasureMode(''); else { selectedNode = null; setSelection([], false); } }
 });
 

@@ -94,3 +94,12 @@ test('isometric corners: 8 distinct diagonals, nearest-corner match', async () =
   assert.equal(nearestCorner([0.4, -0.6, 0.7]).key, 'bkl');
   assert.equal(cornerByKey('nonsense').key, 'tfr', 'unknown keys fall back to the default');
 });
+
+test('tree: members with matching names fold into groups', async () => {
+  const { prefixGroups } = await import('../src/treeGroups.js');
+  const names = ['Frame angle L50x50x5 long', 'Frame angle L50x50x5 short', ...Array(12).fill('Bearing bar 30x3'), 'Lifting lug', 'Lifting lug', 'Rod'];
+  const g = prefixGroups(names);
+  assert.deepEqual(g.map(x => [x.label, x.members.length]), [['Frame angle L50x50x5', 2], ['Bearing bar 30x3', 12], ['Lifting lug', 2]]);
+  assert.equal(prefixGroups(Array(4).fill('Bar')).length, 0, 'no group that would hold every sibling');
+  assert.equal(prefixGroups(['AB1', 'AB2', 'XY']).length, 0, 'names shorter than 3 matching characters stay apart');
+});

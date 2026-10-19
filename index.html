@@ -50,6 +50,17 @@
       </div>
       <div id="fileList"></div>
       <input id="treeFilter" type="search" placeholder="Filter parts…" aria-label="Filter parts">
+      <label class="check tree-opt" title="Fold members whose names start with the same 3+ characters into one row"><input id="treeGroupByName" type="checkbox" checked> Group members with matching names</label>
+      <div id="selBar" hidden>
+        <span id="selCount"></span>
+        <button id="selHide" class="small" title="Hide the selected parts (H)">Hide</button>
+        <button id="selShow" class="small" title="Show the selected parts">Show</button>
+        <button id="selIso" class="small" title="Isolate the selected parts (I)">Isolate</button>
+        <button id="selGroup" class="small primary" title="Make a group from the selected parts (G)">Group</button>
+        <button id="selClear" class="small" title="Clear the selection (Esc)" aria-label="Clear selection">✕</button>
+      </div>
+      <p class="muted small tree-tip">Ctrl/⌘-click to add or remove a row, Shift-click for a range.</p>
+      <div id="userGroups" hidden></div>
       <div id="tree" role="tree"></div>
     </aside>
 

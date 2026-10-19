@@ -8,6 +8,9 @@ A static web app for checking fabricators' STEP and IGES models in the browser, 
 
 - **Upload model:** `.stp .step .igs .iges` from the **Upload model** button or by drag and drop; the model is opened in the browser and not stored. You can open several files into one scene. Shows progress, and names the file in any error. Shows the file's declared unit; all values are in mm.
 - **Model tree:** the STEP product names (falling back to `Part 1`, `Part 2`…). Each node has visibility, isolate, a colour swatch and a filter box. Tree and 3D selection stay in sync.
+  - members whose names start with the same 3+ characters are folded into one group row (e.g. 12 × *Bearing bar 30x3*) with its own visibility, colour and isolate; this can be turned off;
+  - Ctrl/⌘-click adds or removes a row from the selection, Shift-click selects a range; the selection bar then offers Hide, Show, Isolate and **Group**, and a selected row's tick box switches the whole selection;
+  - **Group** (or `G`) saves the selection as a named group at the top of the tree, with its own visibility, colour and isolate; groups can be renamed (double-click) or removed, and last for the session.
 - **Properties** (for one part, an assembly node, or a multi-selection):
   - path and bounding box (size and min/max corners);
   - volume (mm³ and m³), surface area and centroid, labelled *from mesh, approx.*, with a warning when the mesh is not closed;
@@ -39,7 +42,7 @@ A static web app for checking fabricators' STEP and IGES models in the browser, 
   - see [DXF export](#dxf-export) for how it works.
 - **Phone:** touch orbit, pinch zoom and two-finger pan. The tree and the tools panel become drawers, and a chip at the bottom summarises the selection.
 
-Keyboard: `F` fit all, `S` fit selection, `O` ortho, `E` edges, `M` measure, `H` hide selection, `I` isolate selection, `A` show all, `Esc` clear.
+Keyboard: `F` fit all, `S` fit selection, `O` ortho, `E` edges, `M` measure, `H` hide selection, `I` isolate selection, `A` show all, `G` group selection, `Esc` clear.
 
 ## Run locally
 

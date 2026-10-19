@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Tree folds members with matching names (same first 3+ characters) into group rows with group visibility; can be switched off.
+- Ctrl/⌘-click and Shift-click selection in the tree; a selection bar with Hide / Show / Isolate / Group; a selected row's tick box applies to the whole selection.
+- Named groups made from the selection (Group button or `G`), listed at the top of the tree with their own visibility, colour and isolate.
 - DXF isometric can be drawn from any of the 8 corners: picker with cube icons in the DXF tab, plus *Match 3D view*. The view label names the corner, and the choice is remembered.
 - View cube in the 3D view: click a face, edge or corner to swing the camera to that side. The corners match the DXF corner names.
 - **Upload model** button in the toolbar and on the start screen. The start screen now says plainly that the model is opened in the browser and not stored.

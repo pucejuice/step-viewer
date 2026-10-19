@@ -74,6 +74,16 @@ input[type="range"] { width: 100%; }
 #fileList .file { padding: 6px 8px; border-bottom: 1px solid var(--border); }
 #fileList .file b { word-break: break-all; }
 
+/* tree options, selection bar, user groups */
+.tree-opt { display: flex; align-items: center; gap: 6px; margin: 0 8px 4px; font-size: 12px; }
+.tree-tip { margin: 0 8px 4px; }
+#selBar { display: flex; align-items: center; gap: 3px; margin: 0 8px 6px; padding: 4px 6px; border: 1px solid var(--accent); border-radius: 6px; font-size: 12px; flex-wrap: wrap; }
+#selBar[hidden] { display: none; }
+#selCount { margin-right: auto; }
+#userGroups { border-bottom: 1px solid var(--border); padding-bottom: 4px; margin-bottom: 4px; }
+.ug-head { display: flex; align-items: baseline; gap: 8px; padding: 4px 8px; }
+.row-n .gtag { color: var(--accent); }
+.row-n .ug-del { min-height: 22px; padding: 0 6px; }
 #tree { flex: 1; overflow: auto; padding-bottom: 20px; }
 .node { user-select: none; }
 .row-n {
