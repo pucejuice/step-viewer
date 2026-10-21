@@ -21,6 +21,7 @@ A static web app for checking fabricators' STEP and IGES models in the browser, 
 - **Parts list:** groups identical parts (same name, or same bounding box and volume within 0.5 %), with quantity, size, volume and mass each and in total. A tick box per group turns that whole group on or off (for example, hide every bolt). CSV export.
 - **Turning parts on and off:** tree tick boxes, parts-list tick boxes, Hide / Isolate / Show all, and the `H`, `I` and `A` keys. Hidden parts are left out of the DXF.
 - **Delete from the view:** **Delete** (or `Del`) removes the selected parts, **Keep only** removes everything except the selection, so you can cut a large model down to the section you are checking. `Ctrl+Z` or the toast's **Undo** brings parts back, and **Restore all** brings everything back. Deleted parts leave the view, tree, parts list, picking, snapping, sections and DXF. The model file itself is never changed.
+- **Download trimmed STEP:** after deleting parts, the file entry in the tree offers *Download trimmed STEP*. This is a copy of the original STEP file with those parts taken out of its text; everything kept is byte-for-byte the original exact geometry, names, colours and units, so it opens in any CAD package. See [Trimmed STEP](#trimmed-step) for how it works and its one limit.
 - **Viewing:**
   - standard views, fit all, fit selection, and a **view cube** in the corner of the 3D view: click any face, edge or corner to orbit the camera there, or use its turn ⟲ ⟳ and flip ⇅ buttons to reach the far side and the underside;
   - perspective/orthographic;
@@ -146,6 +147,19 @@ Also checked in headless Chromium:
 - that the only network requests are to the app's own files;
 - the 4.5 MB sample opens in about 11 s with software rendering, and picking takes about 3 ms.
 
+## Trimmed STEP
+
+The geometry kernel in the browser reads STEP but cannot write it. A trimmed copy is made by editing the original file's text instead (`src/step/`):
+
+1. **Structure.** When a STEP file opens, its product structure is read from the text: products, assembly occurrences (`NEXT_ASSEMBLY_USAGE_OCCURRENCE`) with their placements, and each product's solid bodies (`p21.js`, `structure.js`). The tree then shows the file's real sub-assemblies and part names.
+2. **Matching.** Every mesh the kernel produced is matched to its occurrence and body, then the match is proved geometrically: every copy of a product body must be the same shape moved by its own chain of placements (`map.js`). A file that can't be matched is opened normally, with trimming switched off and the reason shown.
+3. **Trimming.** Each deleted part is removed at the highest level that is entirely deleted: a whole occurrence, a top-level product, or one body of a product deleted in every copy. Entities that refer to removed ones are removed too (or the reference is taken out of a list), products no longer used anywhere go with their geometry, and styling for geometry that is gone is dropped (`trim.js`). An integrity check makes sure nothing left points at something removed.
+4. **Check before download.** The trimmed text is read back with the same kernel, and the download is offered only if exactly the kept parts come back, in the same places.
+
+**The limit:** a STEP file stores a sub-assembly or part once and places it many times. Deleting something inside *one* copy of a sub-assembly that is used several times (for example one nut in one of 16 identical bolt assemblies) can't be written without restructuring the file, so the download is refused with an explanation: delete it in every copy, or delete whole copies.
+
+Tested on the samples, CAx-IF test files (AP203 and AP214, mm and inch) and a 4.7 MB / 576-part Inventor assembly. Outputs read cleanly in an independent STEP parser and desktop Open CASCADE.
+
 ## Icons and start-screen art
 
 The start screen's header band and the app icons use the slate facet pattern shared with the sla and ins apps. The facet geometry is in `src/brand/mesh.json`. `python scripts/build_icons.py` (needs Pillow) redraws the icons into `public/icons/`: the pattern with a white isometric-cube glyph, including a maskable icon for Android home screens. `public/manifest.webmanifest` lets phones add the app to the home screen.
@@ -162,6 +176,7 @@ src/measure.js           distance and angle measurements
 src/partsList.js         grouping and CSV
 src/units.js             STEP/IGES declared unit
 src/dxf/                 projection, hidden lines, DXF/SVG output
+src/step/                STEP text reader, product structure, mesh matching, trimming
 src/vendor/sdxf.js       vendored sdxf.js (generated)
 src/brand/mesh.json      facet pattern for the start screen and icons
 public/icons/            app icons (scripts/build_icons.py)

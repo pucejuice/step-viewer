@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- **Download trimmed STEP:** a copy of the original STEP file without the deleted parts, made by editing the file text (exact geometry, names, colours and units kept), checked by reading it back before download. Deleting inside one copy of a shared sub-assembly is refused with an explanation.
+- The tree shows the STEP file's real sub-assemblies and part names (the geometry kernel flattened some sub-assemblies into unnamed solids).
+- Fix: the "Units in file" line now reports the unit the geometry uses. Files that also define millimetres as the base of an inch unit were shown as mm.
 - Delete parts from the view: Delete / `Del`, Keep only (delete everything else), Undo (`Ctrl+Z` or the toast), Restore all. Deleted parts drop out of the tree, parts list, picking, snapping, sections and DXF; the file is unchanged.
 - Point-to-point measuring snaps to corners, edge midpoints, hole / arc centres (with diameter) and along edges, with a live snap marker, rubber band and snap filters.
 - View cube: camera moves now orbit around the vertical axis instead of swinging over the pole (which spun the view on the way to bottom isometrics); larger corner targets; turn left / right and flip top-bottom buttons.

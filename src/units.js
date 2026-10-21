@@ -3,17 +3,41 @@
 
 const SI_PREFIX = { MILLI: 'mm', CENTI: 'cm', DECI: 'dm', MICRO: 'µm', KILO: 'km', NANO: 'nm' };
 
+function unitOfEntity(ent) {
+  const conv = ent.match(/CONVERSION_BASED_UNIT\s*\(\s*'([^']*)'/);
+  if (conv) return conv[1].toLowerCase();
+  const si = ent.match(/SI_UNIT\s*\(\s*(\.([A-Z]+)\.|\$|\*)\s*,\s*\.METRE\./);
+  if (si) return si[2] ? (SI_PREFIX[si[2]] || si[2].toLowerCase() + 'metre') : 'm';
+  return null;
+}
+
+/**
+ * The length unit the geometry is measured in: the LENGTH_UNIT listed by the
+ * GLOBAL_UNIT_ASSIGNED_CONTEXTs (most common one if they differ). A file can
+ * also define other length units, e.g. mm as the base of an INCH conversion,
+ * so the first LENGTH_UNIT in the file is not necessarily the one in use.
+ */
 export function detectStepUnit(text) {
-  // Entities are separated by ';'. Find the first one that is a length unit.
-  const re = /[^;]*LENGTH_UNIT[^;]*;/g;
+  const upper = text.toUpperCase();
+  const entityText = (id) => {
+    const m = new RegExp('#' + id + '\\s*=([^;]*);').exec(upper);
+    return m ? m[1] : '';
+  };
+  const counts = new Map();
+  const re = /GLOBAL_UNIT_ASSIGNED_CONTEXT\s*\(\s*\(([^)]*)\)/g;
   let m;
-  while ((m = re.exec(text)) !== null) {
-    const ent = m[0].toUpperCase();
-    const conv = ent.match(/CONVERSION_BASED_UNIT\s*\(\s*'([^']*)'/);
-    if (conv) return conv[1].toLowerCase();
-    const si = ent.match(/SI_UNIT\s*\(\s*(\.([A-Z]+)\.|\$|\*)\s*,\s*\.METRE\./);
-    if (si) return si[2] ? (SI_PREFIX[si[2]] || si[2].toLowerCase() + 'metre') : 'm';
+  while ((m = re.exec(upper)) !== null) {
+    for (const r of m[1].match(/#\d+/g) || []) {
+      const ent = entityText(r.slice(1));
+      if (!/LENGTH_UNIT/.test(ent)) continue;
+      const u = unitOfEntity(ent);
+      if (u) counts.set(u, (counts.get(u) || 0) + 1);
+    }
   }
+  if (counts.size) return [...counts].sort((a, b) => b[1] - a[1])[0][0];
+  // fallback: the first length unit in the file
+  const re2 = /[^;]*LENGTH_UNIT[^;]*;/g;
+  while ((m = re2.exec(upper)) !== null) { const u = unitOfEntity(m[0]); if (u) return u; }
   return 'unknown';
 }
 

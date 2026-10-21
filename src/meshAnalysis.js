@@ -74,11 +74,14 @@ export function analyseMesh(positions, indices, faceIds) {
 
   // mass properties about the bbox centre (better conditioning), in doubles
   const cx = (box.min[0] + box.max[0]) / 2, cy = (box.min[1] + box.max[1]) / 2, cz = (box.min[2] + box.max[2]) / 2;
-  let vol = 0, area = 0, mx = 0, my = 0, mz = 0;
+  let vol = 0, area = 0, mx = 0, my = 0, mz = 0, ax0 = 0, ay0 = 0, az0 = 0;
   const p = positions;
   for (let t = 0; t < triCount; t++) {
     const a = indices[3 * t], b = indices[3 * t + 1], c = indices[3 * t + 2];
-    area += triNormal(p, a, b, c, nrm);
+    const ta = triNormal(p, a, b, c, nrm);
+    area += ta;
+    // area-weighted surface centroid: moves rigidly with the part even when the mesh is open
+    ax0 += ta * (p[3 * a] + p[3 * b] + p[3 * c]) / 3; ay0 += ta * (p[3 * a + 1] + p[3 * b + 1] + p[3 * c + 1]) / 3; az0 += ta * (p[3 * a + 2] + p[3 * b + 2] + p[3 * c + 2]) / 3;
     normals[3 * t] = nrm[0]; normals[3 * t + 1] = nrm[1]; normals[3 * t + 2] = nrm[2];
     const ax = p[3 * a] - cx, ay = p[3 * a + 1] - cy, az = p[3 * a + 2] - cz;
     const bx = p[3 * b] - cx, by = p[3 * b + 1] - cy, bz = p[3 * b + 2] - cz;
@@ -133,6 +136,7 @@ export function analyseMesh(positions, indices, faceIds) {
   return {
     bboxMin: box.min, bboxMax: box.max,
     volume: Math.abs(vol), area, centroid,
+    areaCentroid: area > 0 ? [ax0 / area, ay0 / area, az0 / area] : [cx, cy, cz],
     triangles: triCount,
     closed: open === 0 && nonManifold === 0 && triCount > 0,
     openEdges: open, nonManifoldEdges: nonManifold, inconsistentEdges: inconsistent,

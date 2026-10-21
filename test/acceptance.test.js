@@ -120,3 +120,34 @@ test('snapping: block corners and midpoints, rod and lug-hole centres', async ()
   const l = snapData({ analysis: lug.analysis });
   assert.ok(l.centres.some(c => Math.abs(c[3] - 8) < 0.05), 'Ø16 lifting hole centre found');
 });
+
+test('trimmed STEP: delete occurrences, refuse shared, keep the rest exactly', async () => {
+  const { parseP21 } = await import('../src/step/p21.js');
+  const { productStructure } = await import('../src/step/structure.js');
+  const { matchMeshes, unitScale } = await import('../src/step/map.js');
+  const { trimStep } = await import('../src/step/trim.js');
+  const bytes = readFileSync(new URL('../samples/grating_panel_assembly.step', import.meta.url));
+  const file = parseP21(new TextDecoder('latin1').decode(bytes));
+  const st = productStructure(file);
+  const res = occt.ReadStepFile(bytes, params);
+  const cent = (m) => {
+    const a = analyseMesh(new Float32Array(m.attributes.position.array), new Uint32Array(m.index.array), null);
+    return a.areaCentroid;
+  };
+  const cents = res.meshes.map(cent);
+  const r = matchMeshes(st, res.root, cents, cents.map(() => 1000), unitScale(detectUnit(bytes, 'step')));
+  assert.ok(r.ok, r.reason);
+  // delete every cross rod
+  const rods = new Set(r.map.map((m, i) => i).filter(i => st.pds.get(r.map[i].pd).name === 'Cross rod dia 6'));
+  assert.equal(rods.size, 5);
+  const out = trimStep(file, st, r.map, rods);
+  const res2 = occt.ReadStepFile(new TextEncoder().encode(out.text), params);
+  assert.equal(res2.meshes.length, 20);
+  const got = res2.meshes.map(cent);
+  for (const [i, c] of cents.entries()) {
+    if (rods.has(i)) continue;
+    assert.ok(got.some(g => Math.hypot(g[0] - c[0], g[1] - c[1], g[2] - c[2]) < 0.05), 'kept part in place');
+  }
+  assert.ok(!/Cross rod/.test(out.text), 'the rod product is gone from the file');
+  assert.throws(() => trimStep(file, st, r.map, new Set(r.map.map((m, i) => i))), /nothing left/);
+});

@@ -93,6 +93,13 @@ function getWorker() {
   worker = new Worker(new URL('./worker.js', import.meta.url), { type: 'module' });
   worker.onmessage = (ev) => {
     const m = ev.data;
+    if (m.type === 'trimProgress' || m.type === 'trimResult') {
+      const job = trimJobs.get(m.reqId);
+      if (!job) return;
+      if (m.type === 'trimProgress') job.onProgress(m.stage);
+      else { trimJobs.delete(m.reqId); job.resolve(m); }
+      return;
+    }
     const job = pending.get(m.id);
     if (!job) return;
     if (m.type === 'progress') job.onProgress(m.stage, m.frac);
@@ -101,6 +108,8 @@ function getWorker() {
   worker.onerror = (e) => {
     for (const job of pending.values()) job.resolve({ ok: false, error: e.message || 'worker failed', name: job.name });
     pending.clear();
+    for (const job of trimJobs.values()) job.resolve({ ok: false, reason: e.message || 'worker failed' });
+    trimJobs.clear();
     worker = null;
   };
   return worker;
@@ -141,12 +150,12 @@ async function openOne(name, getBuffer, size) {
   hideProgress();
   if (!res.ok) { toast(`Could not open ${name}: ${res.error}`, 'error'); return; }
   const ms = performance.now() - t0;
-  addModel(name, res, ms);
+  addModel(name, res, ms, res.id);
 }
 
-function addModel(fileName, res, ms) {
+function addModel(fileName, res, ms, workerId) {
   const firstModel = parts.length === 0;
-  const file = { name: fileName, unit: res.unit, parts: res.meshes.length, ms };
+  const file = { name: fileName, unit: res.unit, parts: res.meshes.length, ms, workerId, editable: !!res.editable, editReason: res.reason || '', ids: [] };
   files.push(file);
   let partNo = 0;
   const mkNode = (name, parent) => {
@@ -164,11 +173,12 @@ function addModel(fileName, res, ms) {
     const m = res.meshes[meshIndex];
     const name = nameHint || m.name || `Part ${++partNo}`;
     const part = {
-      id: partCounter++, name, nodeId: node.id, visible: true, file: fileName,
+      id: partCounter++, name, nodeId: node.id, visible: true, file: fileName, fileRef: file, meshIndex,
       autoName: autoName || (!nameHint && !m.name), context: node.parent ? node.parent.name : '',
       analysis: m.analysis, color: defaultColor(name, m.color),
     };
     parts[part.id] = part;
+    file.ids.push(part.id);
     viewer.addPart(part, m);
     node.partIds.push(part.id);
   };
@@ -208,11 +218,48 @@ function addModel(fileName, res, ms) {
 }
 
 function renderFiles() {
-  $('#fileList').innerHTML = files.map(f => `<div class="file"><b>${esc(f.name)}</b><br>
-    <span class="muted">Units in file: ${esc(f.unit)}${f.unit !== 'mm' ? ' → shown in mm' : ''} · ${f.parts} part${f.parts === 1 ? '' : 's'} · ${(f.ms / 1000).toFixed(1)} s</span></div>`).join('')
-    + (deletedCount() ? `<div class="file deleted-note">${deletedCount()} part${deletedCount() === 1 ? '' : 's'} deleted from this view (the file is unchanged) <button id="btnRestoreAll" class="small">Restore all</button></div>` : '');
-  const rb = document.getElementById('btnRestoreAll');
-  if (rb) rb.addEventListener('click', restoreAll);
+  const host = $('#fileList');
+  host.innerHTML = '';
+  for (const f of files) {
+    const del = f.ids.filter(id => parts[id] && parts[id].deleted).length;
+    const div = document.createElement('div');
+    div.className = 'file';
+    div.innerHTML = `<b>${esc(f.name)}</b><br>
+      <span class="muted">Units in file: ${esc(f.unit)}${f.unit !== 'mm' ? ' → shown in mm' : ''} · ${f.parts} part${f.parts === 1 ? '' : 's'} · ${(f.ms / 1000).toFixed(1)} s</span>`;
+    if (del) {
+      const note = document.createElement('div');
+      note.className = 'deleted-note';
+      note.innerHTML = `${del} part${del === 1 ? '' : 's'} deleted from the view. The original file is unchanged.
+        <div class="row"><button class="small trim primary" ${f.editable ? '' : 'disabled'} title="${f.editable ? 'Save a copy of the STEP file without the deleted parts (checked before download)' : esc(f.editReason)}">Download trimmed STEP</button>
+        <button class="small restore">Restore all</button></div>
+        ${f.editable ? '' : `<span class="small">${esc(f.editReason)}</span>`}`;
+      note.querySelector('.trim').addEventListener('click', () => downloadTrimmed(f));
+      note.querySelector('.restore').addEventListener('click', restoreAll);
+      div.appendChild(note);
+    }
+    host.appendChild(div);
+  }
+}
+
+// ── trimmed STEP download ──────────────────────────────────────────────────
+const trimJobs = new Map();
+let trimReq = 0;
+async function downloadTrimmed(f) {
+  const deleted = f.ids.filter(id => parts[id].deleted).map(id => parts[id].meshIndex);
+  if (!deleted.length) return;
+  const partNames = {};
+  for (const id of f.ids) partNames[parts[id].meshIndex] = parts[id].name;
+  const reqId = ++trimReq;
+  showProgress(`${f.name}: writing the trimmed file…`, 0.3, true);
+  const res = await new Promise((resolve) => {
+    trimJobs.set(reqId, { resolve, onProgress: (stage) => showProgress(`${f.name}: ${stage}…`, 0.6, true) });
+    getWorker().postMessage({ type: 'trim', id: f.workerId, reqId, deleted, partNames });
+  });
+  hideProgress();
+  if (!res.ok) { toast(`Trimmed STEP not saved: ${res.reason}`, 'error'); return; }
+  const base = f.name.replace(/\.(stp|step)$/i, '');
+  download(new Blob([res.bytes], { type: 'application/step' }), `${base} (trimmed).step`);
+  toast(`Saved "${base} (trimmed).step": ${res.kept} parts kept, checked by reading it back`, '', 6000);
 }
 
 function closeAll() {
@@ -221,6 +268,7 @@ function closeAll() {
   parts.length = 0; nodes.length = 0; files.length = 0; nameColor.clear();
   partCounter = 0;
   userGroups.length = 0; userGroupCounter = 0; groupOpen.clear(); anchorItem = null; deleteStack.length = 0;
+  if (worker) worker.postMessage({ type: 'forget' });
   selectedNode = null;
   renderFiles(); renderTree(); renderProps(); renderParts();
   $('#empty').hidden = false;
