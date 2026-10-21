@@ -230,19 +230,24 @@ export class Viewer {
       offset: new THREE.Vector3().subVectors(this.camera.position, this.controls.target),
       half: (this._orthoHalf || end.half) / this.ortho.zoom,
     };
-    const u0 = start.offset.clone().normalize(), u1 = end.offset.clone().normalize();
-    // rotation between the two view directions (about Z for exact opposites)
-    const q = u0.dot(u1) < -0.9999
-      ? new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), Math.PI)
-      : new THREE.Quaternion().setFromUnitVectors(u0, u1);
-    const t0 = performance.now(), ms = 320;
+    // Animate like an orbit: turn about Z (shortest way round) while tilting.
+    // Interpolating the 3D direction instead can pass over a pole, where +Z up
+    // is undefined and the view spins.
+    const sph = (v) => ({ r: v.length(), th: Math.atan2(v.y, v.x), ph: Math.acos(THREE.MathUtils.clamp(v.z / v.length(), -1, 1)) });
+    const a = sph(start.offset), z = sph(end.offset);
+    let dth = z.th - a.th;
+    while (dth > Math.PI) dth -= 2 * Math.PI;
+    while (dth < -Math.PI) dth += 2 * Math.PI;
+    const EPS = 1e-4;
+    const t0 = performance.now(), ms = 360;
     const step = () => {
       const t = Math.min(1, (performance.now() - t0) / ms);
-      const e = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
-      const qt = new THREE.Quaternion().slerp(q, e);
-      const len = THREE.MathUtils.lerp(start.offset.length(), end.offset.length(), e);
-      const offset = u0.clone().applyQuaternion(qt).multiplyScalar(len);
       if (t >= 1) { this._applyView(end.target, end.offset, end.half); return; }
+      const e = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+      const r = THREE.MathUtils.lerp(a.r, z.r, e);
+      const th = a.th + dth * e;
+      const ph = THREE.MathUtils.clamp(THREE.MathUtils.lerp(a.ph, z.ph, e), EPS, Math.PI - EPS);
+      const offset = new THREE.Vector3(Math.sin(ph) * Math.cos(th), Math.sin(ph) * Math.sin(th), Math.cos(ph)).multiplyScalar(r);
       this._applyView(start.target.clone().lerp(end.target, e), offset, THREE.MathUtils.lerp(start.half, end.half, e));
       this._anim = requestAnimationFrame(step);
     };

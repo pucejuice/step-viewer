@@ -1,5 +1,10 @@
-// Point-to-point distance (snaps to mesh vertices) and angle between two faces.
+// Point-to-point distance (snaps to corners, midpoints, centres and edges, see
+// snap.js) and angle between two faces.
 import * as THREE from 'three';
+import { findSnap } from './snap.js';
+
+const SNAP_COLORS = { corner: 0x2f9e44, mid: 0x1c7ed6, centre: 0xae3ec9, edge: 0xf08c00, face: 0x868e96 };
+const SNAP_NAMES = { corner: 'Corner', mid: 'Midpoint', centre: 'Centre', edge: 'Edge', face: 'Face' };
 
 const SNAP_PX = 14;
 const COLORS = { distance: 0xe0245e, angle: 0x1f8f4e };
@@ -11,25 +16,79 @@ export class Measurements {
     this.items = [];
     this.pendingPick = null;
     this.counter = 0;
+    this.kinds = new Set(['corner', 'mid', 'centre', 'edge', 'face']);
+    this.hoverSnap = null;
+    this.snapLabel = document.createElement('div');
+    this.snapLabel.className = 'snaplabel';
+    this.snapLabel.hidden = true;
+    labelHost.appendChild(this.snapLabel);
     viewer.onRenderHooks.push(() => this.updateLabels());
   }
 
   setMode(mode) {
     this.mode = mode;
     this._clearPending();
+    this._clearHover();
     this.hint();
+  }
+
+  /** Live snap preview while the pointer moves (distance mode). */
+  hover(x, y) {
+    if (this.mode !== 'distance') return;
+    const s = findSnap(this.viewer, x, y, this.kinds);
+    this.hoverSnap = s;
+    if (!s) { this._clearHover(); return; }
+    const col = SNAP_COLORS[s.kind];
+    if (!this.hoverMarker) {
+      this.hoverMarker = this._marker([s.point], col);
+      this.hoverMarker.material.size = 13;
+      this.viewer.overlay.add(this.hoverMarker);
+    }
+    this.hoverMarker.geometry.setFromPoints([s.point]);
+    this.hoverMarker.material.color.setHex(col);
+    // rubber band from the first point
+    if (this.pendingPick) {
+      if (!this.band) {
+        this.band = new THREE.Line(new THREE.BufferGeometry(), new THREE.LineBasicMaterial({ color: COLORS.distance, depthTest: false, transparent: true, opacity: 0.6 }));
+        this.band.renderOrder = 10;
+        this.viewer.overlay.add(this.band);
+      }
+      this.band.geometry.setFromPoints([this.pendingPick.point, s.point]);
+      const d = s.point.clone().sub(this.pendingPick.point);
+      this.hint(`${d.length().toFixed(1)} mm  (dX ${d.x.toFixed(1)}, dY ${d.y.toFixed(1)}, dZ ${d.z.toFixed(1)}) · click to place`);
+    }
+    const r = this.viewer.renderer.domElement.getBoundingClientRect();
+    this.snapLabel.hidden = false;
+    this.snapLabel.textContent = SNAP_NAMES[s.kind] + (s.kind === 'centre' ? ` Ø${(2 * s.radius).toFixed(1)}` : '');
+    this.snapLabel.style.left = (x - r.left + 14) + 'px';
+    this.snapLabel.style.top = (y - r.top + 14) + 'px';
+    this.snapLabel.style.borderColor = '#' + col.toString(16).padStart(6, '0');
+    this.viewer.requestRender();
+  }
+
+  _clearHover() {
+    this.hoverSnap = null;
+    this.snapLabel.hidden = true;
+    for (const k of ['hoverMarker', 'band']) {
+      if (this[k]) { this.viewer.overlay.remove(this[k]); this[k].geometry.dispose(); this[k].material.dispose(); this[k] = null; }
+    }
+    this.viewer.requestRender();
   }
 
   hint(text) {
     if (!this.mode) { this.hintEl.hidden = true; return; }
     this.hintEl.hidden = false;
     this.hintEl.textContent = text || (this.mode === 'distance'
-      ? (this.pendingPick ? 'Click the second point' : 'Distance: click the first point (snaps to vertices)')
+      ? (this.pendingPick ? 'Click the second point' : 'Point to point: click the first point (snaps to corners, midpoints, centres and edges)')
       : (this.pendingPick ? 'Click the second face' : 'Face angle: click the first face'));
   }
 
-  /** Pick a point; snap to the nearest vertex of the hit triangle within SNAP_PX. */
+  /** Pick a point. Distance mode snaps (snap.js); angle mode needs the face under the cursor. */
   pickPoint(x, y) {
+    if (this.mode === 'distance') {
+      const s = findSnap(this.viewer, x, y, this.kinds);
+      return s ? { point: s.point, snapped: s.kind !== 'face', kind: s.kind, normal: s.normal, partId: s.partId } : null;
+    }
     const hit = this.viewer.pick(x, y);
     if (!hit) return null;
     const pos = hit.object.geometry.attributes.position;
@@ -58,6 +117,7 @@ export class Measurements {
     }
     const a = this.pendingPick;
     this._clearPending();
+    this._clearHover();
     this.add(this.mode, a, p);
     this.hint();
   }
@@ -77,7 +137,7 @@ export class Measurements {
       const d = new THREE.Vector3().subVectors(b.point, a.point);
       const L = d.length();
       text = `${L.toFixed(1)} mm\ndX ${d.x.toFixed(1)}  dY ${d.y.toFixed(1)}  dZ ${d.z.toFixed(1)}`;
-      summary = `<b>${L.toFixed(2)} mm</b> <span class="muted">dX ${d.x.toFixed(2)}, dY ${d.y.toFixed(2)}, dZ ${d.z.toFixed(2)}${a.snapped && b.snapped ? '' : ' (not snapped)'}</span>`;
+      summary = `<b>${L.toFixed(2)} mm</b> <span class="muted">dX ${d.x.toFixed(2)}, dY ${d.y.toFixed(2)}, dZ ${d.z.toFixed(2)}</span> <span class="muted small">${SNAP_NAMES[a.kind] || 'Point'} → ${SNAP_NAMES[b.kind] || 'Point'}</span>`;
     } else {
       const c = THREE.MathUtils.clamp(a.normal.dot(b.normal), -1, 1);
       const ang = THREE.MathUtils.radToDeg(Math.acos(c));
@@ -110,6 +170,7 @@ export class Measurements {
 
   clear() {
     this._clearPending();
+    this._clearHover();
     for (const m of [...this.items]) this.remove(m.id);
   }
 

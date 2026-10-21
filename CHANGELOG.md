@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Point-to-point measuring snaps to corners, edge midpoints, hole / arc centres (with diameter) and along edges, with a live snap marker, rubber band and snap filters.
+- View cube: camera moves now orbit around the vertical axis instead of swinging over the pole (which spun the view on the way to bottom isometrics); larger corner targets; turn left / right and flip top-bottom buttons.
 - Tree folds members with matching names (same first 3+ characters) into group rows with group visibility; can be switched off.
 - Ctrl/⌘-click and Shift-click selection in the tree; a selection bar with Hide / Show / Isolate / Group; a selected row's tick box applies to the whole selection.
 - Named groups made from the selection (Group button or `G`), listed at the top of the tree with their own visibility, colour and isolate.

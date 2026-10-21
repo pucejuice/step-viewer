@@ -103,3 +103,20 @@ test('tree: members with matching names fold into groups', async () => {
   assert.equal(prefixGroups(Array(4).fill('Bar')).length, 0, 'no group that would hold every sibling');
   assert.equal(prefixGroups(['AB1', 'AB2', 'XY']).length, 0, 'names shorter than 3 matching characters stay apart');
 });
+
+test('snapping: block corners and midpoints, rod and lug-hole centres', async () => {
+  const { snapData } = await import('../src/snap.js');
+  const block = load('block_100x50x10.step').meshes[0];
+  const b = snapData({ analysis: block.analysis });
+  assert.equal(b.corners.length, 8);
+  assert.equal(b.mids.length, 12);
+  assert.equal(b.centres.length, 0);
+  const asm = load('grating_panel_assembly.step');
+  const rod = asm.meshes.find(m => m.name === 'Cross rod dia 6');
+  const r = snapData({ analysis: rod.analysis });
+  assert.equal(r.centres.length, 2, 'both rod ends');
+  for (const c of r.centres) assert.ok(Math.abs(c[3] - 3) < 0.01, 'radius 3');
+  const lug = asm.meshes.find(m => m.name === 'Lifting lug');
+  const l = snapData({ analysis: lug.analysis });
+  assert.ok(l.centres.some(c => Math.abs(c[3] - 8) < 0.05), 'Ø16 lifting hole centre found');
+});

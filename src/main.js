@@ -600,7 +600,13 @@ function markPartsRows() {
       }, 550);
     }
   });
+  let hoverQueued = null;
   el.addEventListener('pointermove', (e) => {
+    if (measure.mode === 'distance' && e.pointerType !== 'touch' && active.size <= 1) {
+      // snap preview, at most once per frame
+      if (!hoverQueued) requestAnimationFrame(() => { const q = hoverQueued; hoverQueued = null; if (q) measure.hover(q.x, q.y); });
+      hoverQueued = { x: e.clientX, y: e.clientY };
+    }
     if (down && Math.hypot(e.clientX - down.x, e.clientY - down.y) > 6) { down = null; clearTimeout(longTimer); }
   });
   const end = (e) => {
@@ -615,6 +621,7 @@ function markPartsRows() {
     if (hit) selectPart(hit.object.userData.partId, additive);
     else if (!additive) { selectedNode = null; setSelection([], false); }
   };
+  el.addEventListener('pointerleave', () => { hoverQueued = null; if (measure.mode) measure._clearHover(); });
   el.addEventListener('pointerup', end);
   el.addEventListener('pointercancel', end);
   el.addEventListener('contextmenu', (e) => e.preventDefault());
@@ -761,6 +768,16 @@ $('#btnMeasure').addEventListener('click', () => {
   if (on) showTab('measure');
 });
 $('#btnClearMeasure').addEventListener('click', () => measure.clear());
+function readSnapKinds() {
+  measure.kinds = new Set($$('input[name="snapKind"]:checked').map(i => i.value));
+  try { localStorage.setItem('sv-snap', JSON.stringify([...measure.kinds])); } catch { /* storage unavailable */ }
+}
+try {
+  const saved = JSON.parse(localStorage.getItem('sv-snap') || 'null');
+  if (Array.isArray(saved)) $$('input[name="snapKind"]').forEach(i => { i.checked = saved.includes(i.value); });
+} catch { /* storage unavailable */ }
+measure.kinds = new Set($$('input[name="snapKind"]:checked').map(i => i.value));
+$$('input[name="snapKind"]').forEach(i => i.addEventListener('change', readSnapKinds));
 
 $('#btnShot').addEventListener('click', () => {
   const canvas = viewer.snapshot(measure.labelsForSnapshot());

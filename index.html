@@ -32,7 +32,7 @@
     </select>
     <button id="btnOrtho" class="toggle" title="Orthographic / perspective (O)">Ortho</button>
     <button id="btnEdges" class="toggle on" title="Feature edges (E)">Edges</button>
-    <button id="btnMeasure" class="toggle" title="Measure distance (M)">Measure</button>
+    <button id="btnMeasure" class="toggle" title="Point-to-point measuring with corner / edge snapping (M)">Measure</button>
     <button id="btnShot" title="Save a PNG screenshot of the current view">PNG</button>
     <button id="btnTheme" title="Light / dark background">Dark</button>
     <span class="grow"></span>
@@ -168,9 +168,17 @@
 
       <div class="tab" id="tab-measure" hidden>
         <div class="seg" id="measureMode">
-          <button data-mode="" class="active">Off</button><button data-mode="distance">Distance</button><button data-mode="angle">Face angle</button>
+          <button data-mode="" class="active">Off</button><button data-mode="distance">Point to point</button><button data-mode="angle">Face angle</button>
         </div>
-        <p class="muted small">Distance: click two points, snaps to mesh vertices. Face angle: click two faces.</p>
+        <p class="muted small">Point to point: click two points. A coloured marker shows what it will snap to before you click. Face angle: click two faces.</p>
+        <h3>Snap to</h3>
+        <div class="checks snapchecks">
+          <label class="check"><input type="checkbox" name="snapKind" value="corner" checked> <span class="sw" style="background:#2f9e44"></span>Corners</label>
+          <label class="check"><input type="checkbox" name="snapKind" value="mid" checked> <span class="sw" style="background:#1c7ed6"></span>Edge midpoints</label>
+          <label class="check"><input type="checkbox" name="snapKind" value="centre" checked> <span class="sw" style="background:#ae3ec9"></span>Hole / arc centres</label>
+          <label class="check"><input type="checkbox" name="snapKind" value="edge" checked> <span class="sw" style="background:#f08c00"></span>Along edges</label>
+          <label class="check"><input type="checkbox" name="snapKind" value="face" checked> <span class="sw" style="background:#868e96"></span>Any point on a face</label>
+        </div>
         <ol id="measureList"></ol>
         <div class="row"><button id="btnClearMeasure">Clear all</button></div>
       </div>

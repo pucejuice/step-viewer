@@ -5,7 +5,7 @@ import * as THREE from 'three';
 import { CORNERS } from './corners.js';
 
 const FACE_LABELS = { 'x1': 'RIGHT', 'x-1': 'LEFT', 'y1': 'BACK', 'y-1': 'FRONT', 'z1': 'TOP', 'z-1': 'BOTTOM' };
-const T = 0.28; // width of the edge / corner bands, cube spans -1..1
+const T = 0.34; // width of the edge / corner bands, cube spans -1..1
 
 function labelTexture(text, dark) {
   const c = document.createElement('canvas');
@@ -44,6 +44,17 @@ export class ViewCube {
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.setSize(this.size, this.size);
     this.el.appendChild(this.renderer.domElement);
+    // turn / flip buttons: reach every side, including the underside, in one click
+    const bar = document.createElement('div');
+    bar.className = 'viewcube-bar';
+    bar.innerHTML = `<button data-act="left" title="Turn the view 90° to the left (around the vertical axis)" aria-label="Turn left">⟲</button>
+      <button data-act="flip" title="Flip between looking from above and from below" aria-label="Flip top / bottom">⇅</button>
+      <button data-act="right" title="Turn the view 90° to the right (around the vertical axis)" aria-label="Turn right">⟳</button>`;
+    bar.addEventListener('click', (e) => {
+      const act = e.target.closest('button')?.dataset.act;
+      if (act) this._turn(act);
+    });
+    this.el.appendChild(bar);
     this.tip = document.createElement('div');
     this.tip.className = 'viewcube-tip';
     this.el.appendChild(this.tip);
@@ -127,6 +138,22 @@ export class ViewCube {
     };
     mk([0.2, -1.08, -1.08], 0xd9534f); mk([-1.08, 0.2, -1.08], 0x4caf50); mk([-1.08, -1.08, 0.2], 0x3d7be0);
     this.scene.add(axes);
+  }
+
+  /** Turn the current view 90° about +Z, or flip it to the other side of the horizontal plane. */
+  _turn(act) {
+    const { dir, up } = this.viewer.viewBasis();
+    let d = dir.slice(), u = up.slice();
+    if (act === 'flip') {
+      d = [d[0], d[1], -d[2]];
+      u = Math.abs(d[2]) > 0.999 ? [u[0], -u[1], 0] : [0, 0, 1];
+    } else {
+      const s = act === 'left' ? -1 : 1; // view turns right = model turns left
+      const rot = ([x, y, z]) => [-s * y, s * x, z];
+      d = rot(d); u = rot(u);
+      if (Math.abs(d[2]) <= 0.999) u = [0, 0, 1];
+    }
+    this.onPick({ dir: d, up: u, name: act });
   }
 
   setTheme(dark) {

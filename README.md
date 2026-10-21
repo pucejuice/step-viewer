@@ -21,14 +21,14 @@ A static web app for checking fabricators' STEP and IGES models in the browser, 
 - **Parts list:** groups identical parts (same name, or same bounding box and volume within 0.5 %), with quantity, size, volume and mass each and in total. A tick box per group turns that whole group on or off (for example, hide every bolt). CSV export.
 - **Turning parts on and off:** tree tick boxes, parts-list tick boxes, Hide / Isolate / Show all, and the `H`, `I` and `A` keys. Hidden parts are left out of the DXF.
 - **Viewing:**
-  - standard views, fit all, fit selection, and a **view cube** in the corner of the 3D view: click any face, edge or corner to swing the camera there;
+  - standard views, fit all, fit selection, and a **view cube** in the corner of the 3D view: click any face, edge or corner to orbit the camera there, or use its turn ⟲ ⟳ and flip ⇅ buttons to reach the far side and the underside;
   - perspective/orthographic;
   - feature edges (true B-rep edges, not angle-guessed);
   - transparency of unselected parts, and ghosting when isolating;
   - section plane on X/Y/Z with slider, flip and caps;
   - dark background by default, with a light option (remembered on that device).
 - **Measuring:**
-  - point-to-point distance snapping to mesh vertices, showing dX, dY, dZ and the true distance;
+  - point to point (`M`): a coloured marker shows the snap before you click. It snaps to **corners** (B-rep vertices), **edge midpoints**, **hole / arc centres** (shows the diameter), **any point along an edge**, or any point on a face, each switchable in the Measure tab. A rubber band shows the live distance and dX, dY, dZ until the second click; points hidden behind surfaces are not snapped;
   - angle between two picked faces;
   - measurements stay listed in the scene until cleared.
 - **Output:** PNG screenshot (includes measurement labels).
