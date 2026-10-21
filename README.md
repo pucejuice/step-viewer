@@ -20,6 +20,7 @@ A static web app for checking fabricators' STEP and IGES models in the browser, 
 - **Multi-select:** Ctrl/Shift-click, or long press on touch.
 - **Parts list:** groups identical parts (same name, or same bounding box and volume within 0.5 %), with quantity, size, volume and mass each and in total. A tick box per group turns that whole group on or off (for example, hide every bolt). CSV export.
 - **Turning parts on and off:** tree tick boxes, parts-list tick boxes, Hide / Isolate / Show all, and the `H`, `I` and `A` keys. Hidden parts are left out of the DXF.
+- **Delete from the view:** **Delete** (or `Del`) removes the selected parts, **Keep only** removes everything except the selection, so you can cut a large model down to the section you are checking. `Ctrl+Z` or the toast's **Undo** brings parts back, and **Restore all** brings everything back. Deleted parts leave the view, tree, parts list, picking, snapping, sections and DXF. The model file itself is never changed.
 - **Viewing:**
   - standard views, fit all, fit selection, and a **view cube** in the corner of the 3D view: click any face, edge or corner to orbit the camera there, or use its turn ⟲ ⟳ and flip ⇅ buttons to reach the far side and the underside;
   - perspective/orthographic;
@@ -42,7 +43,7 @@ A static web app for checking fabricators' STEP and IGES models in the browser, 
   - see [DXF export](#dxf-export) for how it works.
 - **Phone:** touch orbit, pinch zoom and two-finger pan. The tree and the tools panel become drawers, and a chip at the bottom summarises the selection.
 
-Keyboard: `F` fit all, `S` fit selection, `O` ortho, `E` edges, `M` measure, `H` hide selection, `I` isolate selection, `A` show all, `G` group selection, `Esc` clear.
+Keyboard: `F` fit all, `S` fit selection, `O` ortho, `E` edges, `M` measure, `H` hide selection, `I` isolate selection, `A` show all, `G` group selection, `Del` delete selection, `Ctrl+Z` undo delete, `Esc` clear.
 
 ## Run locally
 

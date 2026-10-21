@@ -63,10 +63,17 @@ function materialName() {
 }
 
 // ── toasts & progress ──────────────────────────────────────────────────────
-function toast(msg, kind = '', ms = 5000) {
+function toast(msg, kind = '', ms = 5000, action = null) {
   const t = document.createElement('div');
   t.className = 'toast ' + kind;
   t.textContent = msg;
+  if (action) {
+    const b = document.createElement('button');
+    b.className = 'small toast-act';
+    b.textContent = action.label;
+    b.addEventListener('click', () => { t.remove(); action.fn(); });
+    t.appendChild(b);
+  }
   $('#toasts').appendChild(t);
   setTimeout(() => t.remove(), kind === 'error' ? 12000 : ms);
 }
@@ -202,7 +209,10 @@ function addModel(fileName, res, ms) {
 
 function renderFiles() {
   $('#fileList').innerHTML = files.map(f => `<div class="file"><b>${esc(f.name)}</b><br>
-    <span class="muted">Units in file: ${esc(f.unit)}${f.unit !== 'mm' ? ' → shown in mm' : ''} · ${f.parts} part${f.parts === 1 ? '' : 's'} · ${(f.ms / 1000).toFixed(1)} s</span></div>`).join('');
+    <span class="muted">Units in file: ${esc(f.unit)}${f.unit !== 'mm' ? ' → shown in mm' : ''} · ${f.parts} part${f.parts === 1 ? '' : 's'} · ${(f.ms / 1000).toFixed(1)} s</span></div>`).join('')
+    + (deletedCount() ? `<div class="file deleted-note">${deletedCount()} part${deletedCount() === 1 ? '' : 's'} deleted from this view (the file is unchanged) <button id="btnRestoreAll" class="small">Restore all</button></div>` : '');
+  const rb = document.getElementById('btnRestoreAll');
+  if (rb) rb.addEventListener('click', restoreAll);
 }
 
 function closeAll() {
@@ -210,7 +220,7 @@ function closeAll() {
   measure.clear();
   parts.length = 0; nodes.length = 0; files.length = 0; nameColor.clear();
   partCounter = 0;
-  userGroups.length = 0; userGroupCounter = 0; groupOpen.clear(); anchorItem = null;
+  userGroups.length = 0; userGroupCounter = 0; groupOpen.clear(); anchorItem = null; deleteStack.length = 0;
   selectedNode = null;
   renderFiles(); renderTree(); renderProps(); renderParts();
   $('#empty').hidden = false;
@@ -219,7 +229,7 @@ function closeAll() {
 
 // ── tree ───────────────────────────────────────────────────────────────────
 function nodeParts(n, out = []) {
-  out.push(...n.partIds);
+  for (const id of n.partIds) if (!parts[id].deleted) out.push(id);
   for (const c of n.children) nodeParts(c, out);
   return out;
 }
@@ -236,18 +246,22 @@ const groupOfNode = new Map(); // node id -> group key (from the last render)
 let treeRows = [];             // items in on-screen order, for Shift-click ranges
 let anchorItem = null;         // last plainly / Ctrl-clicked row
 
+/** Parts of a tree row, user group or name group, leaving out deleted parts. */
+const liveIds = (item) => item.ids ? item.ids.filter(id => !parts[id].deleted) : nodeParts(item);
+
 function displayChildren(n) {
-  if (!$('#treeGroupByName').checked || n.children.length < 3) return n.children;
-  const groups = prefixGroups(n.children.map(c => c.name), 3);
-  if (!groups.length) return n.children;
+  const live = n.children.filter(c => nodeParts(c).length > 0);
+  if (!$('#treeGroupByName').checked || live.length < 3) return live;
+  const groups = prefixGroups(live.map(c => c.name), 3);
+  if (!groups.length) return live;
   const inGroup = new Map();
   for (const g of groups) {
     const key = n.id + '|' + g.key;
-    const item = { isGroup: true, key, name: g.label, parent: n, partIds: [], children: g.members.map(i => n.children[i]) };
+    const item = { isGroup: true, key, name: g.label, parent: n, partIds: [], children: g.members.map(i => live[i]) };
     for (const c of item.children) { inGroup.set(c, item); groupOfNode.set(c.id, key); }
   }
   const out = [];
-  for (const c of n.children) {
+  for (const c of live) {
     const g = inGroup.get(c);
     if (!g) out.push(c);
     else if (!out.includes(g)) out.push(g);
@@ -262,7 +276,7 @@ function makeRow(item, depth, { hasKids, open, title, extra = '' }) {
   const row = document.createElement('div');
   row.className = 'row-n' + (item.isGroup ? ' group' : '');
   row.style.paddingLeft = (depth * 14) + 'px';
-  const ids = item.ids || nodeParts(item);
+  const ids = liveIds(item);
   const anyVisible = ids.some(id => parts[id].visible);
   const color = ids.length ? '#' + parts[ids[0]].color.getHexString() : '#999999';
   row.innerHTML = `<span class="caret">${hasKids ? (open ? '▾' : '▸') : ''}</span>
@@ -291,12 +305,12 @@ function makeRow(item, depth, { hasKids, open, title, extra = '' }) {
 
 /** Plain click selects the row, Ctrl/Cmd-click toggles it, Shift-click selects a range. */
 function clickRow(item, e) {
-  const ids = item.ids || nodeParts(item);
+  const ids = liveIds(item);
   if (e.shiftKey && anchorItem && treeRows.includes(anchorItem) && treeRows.includes(item)) {
     const a = treeRows.indexOf(anchorItem), b = treeRows.indexOf(item);
     const range = treeRows.slice(Math.min(a, b), Math.max(a, b) + 1);
     selectedNode = null;
-    setSelection([...new Set(range.flatMap(r => r.ids || nodeParts(r)))], e.ctrlKey || e.metaKey);
+    setSelection([...new Set(range.flatMap(liveIds))], e.ctrlKey || e.metaKey);
     return;
   }
   anchorItem = item;
@@ -320,7 +334,7 @@ function renderTree() {
   const filter = $('#treeFilter').value.trim().toLowerCase();
   const matches = (n) => !filter || n.name.toLowerCase().includes(filter) || n.children.some(matches);
   const build = (item, depth, parentEl) => {
-    if (!matches(item)) return;
+    if (!matches(item) || nodeParts(item).length === 0) return;
     const el = document.createElement('div');
     el.className = 'node';
     el.setAttribute('role', 'treeitem');
@@ -377,6 +391,61 @@ function expandTo(node) {
   }
 }
 
+// ── delete (from this view only; the model file is never changed) ─────────
+const deleteStack = []; // batches of part ids, for undo
+const deletedCount = () => parts.reduce((n, p) => n + (p && p.deleted ? 1 : 0), 0);
+
+function deleteParts(ids, what) {
+  ids = ids.filter(id => parts[id] && !parts[id].deleted);
+  if (!ids.length) return;
+  for (const id of ids) { parts[id].deleted = true; viewer.selected.delete(id); }
+  if (viewer.isolated) for (const id of ids) viewer.isolated.delete(id);
+  if (viewer.isolated && viewer.isolated.size === 0) viewer.isolated = null;
+  deleteStack.push(ids);
+  selectedNode = null;
+  afterDeleteChange();
+  // this toast's Undo restores exactly this batch, whatever was deleted since
+  toast(`Deleted ${what || `${ids.length} part${ids.length === 1 ? '' : 's'}`}`, '', 7000, { label: 'Undo', fn: () => undoDelete(ids) });
+}
+
+function deleteSelection() {
+  const ids = [...viewer.selected];
+  if (!ids.length) { toast('Select parts to delete first'); return; }
+  deleteParts(ids);
+}
+
+/** Keep only the selection: delete every other part. */
+function deleteOthers() {
+  const keep = viewer.selected;
+  if (!keep.size) { toast('Select the parts to keep first'); return; }
+  const ids = parts.filter(p => p && !p.deleted && !keep.has(p.id)).map(p => p.id);
+  deleteParts(ids, `${ids.length} other part${ids.length === 1 ? '' : 's'} (kept ${keep.size})`);
+}
+
+function undoDelete(batch) {
+  const i = batch ? deleteStack.indexOf(batch) : deleteStack.length - 1;
+  if (i < 0) { toast('Nothing to undo', '', 2000); return; }
+  const ids = deleteStack.splice(i, 1)[0];
+  for (const id of ids) parts[id].deleted = false;
+  afterDeleteChange();
+  toast(`Restored ${ids.length} part${ids.length === 1 ? '' : 's'}`, '', 2500);
+}
+
+function restoreAll() {
+  const n = deletedCount();
+  for (const p of parts) if (p) p.deleted = false;
+  deleteStack.length = 0;
+  afterDeleteChange();
+  if (n) toast(`Restored ${n} part${n === 1 ? '' : 's'}`, '', 2500);
+}
+
+function afterDeleteChange() {
+  updateSectionRange();
+  renderFiles();
+  renderProps();
+  afterVisibilityChange();
+}
+
 // ── selection bar and user groups ──────────────────────────────────────────
 const userGroups = []; // { id, name, ids: [] }
 let userGroupCounter = 0;
@@ -412,7 +481,8 @@ function renderUserGroups() {
   head.innerHTML = '<strong>Groups</strong><span class="muted small">double-click a name to rename</span>';
   host.appendChild(head);
   for (const g of userGroups) {
-    const row = makeRow(g, 0, { hasKids: false, open: false, title: `${g.name}: ${g.ids.length} parts`, extra: '<button class="small ug-del" title="Remove this group (the parts stay)">✕</button>' });
+    if (!liveIds(g).length) continue; // every part deleted
+    const row = makeRow(g, 0, { hasKids: false, open: false, title: `${g.name}: ${liveIds(g).length} parts`, extra: '<button class="small ug-del" title="Remove this group (the parts stay)">✕</button>' });
     row.querySelector('.ug-del').addEventListener('click', (e) => {
       e.stopPropagation();
       userGroups.splice(userGroups.indexOf(g), 1);
@@ -543,7 +613,7 @@ async function copyText(text) {
 let groups = [];
 function renderParts() {
   const visOnly = $('#partsVisibleOnly').checked;
-  const items = parts.filter(p => p && (!visOnly || viewer.partVisible(p))).map(p => ({
+  const items = parts.filter(p => p && !p.deleted && (!visOnly || viewer.partVisible(p))).map(p => ({
     id: p.id, name: p.autoName ? '' : p.name, analysis: p.analysis,
     label: p.autoName ? `Unnamed solid in ${p.context || nodes[p.nodeId].parent?.name || 'model'}` : p.name,
   }));
@@ -630,7 +700,7 @@ function markPartsRows() {
 // ── section plane ──────────────────────────────────────────────────────────
 let sectionRange = [0, 1];
 function updateSectionRange() {
-  const box = viewer.boundsOf(parts.filter(Boolean).map(p => p.id));
+  const box = viewer.boundsOf(parts.filter(p => p && !p.deleted).map(p => p.id));
   const axis = viewer.section.axis;
   if (!axis || box.isEmpty()) return;
   const k = { x: 'x', y: 'y', z: 'z' }[axis];
@@ -813,6 +883,9 @@ $('#selHide').addEventListener('click', () => hideSelection());
 $('#selShow').addEventListener('click', () => { for (const id of viewer.selected) parts[id].visible = true; afterVisibilityChange(); });
 $('#selIso').addEventListener('click', () => { if (viewer.selected.size) isolate([...viewer.selected]); });
 $('#selGroup').addEventListener('click', groupSelection);
+$('#selDelete').addEventListener('click', deleteSelection);
+$('#selKeep').addEventListener('click', deleteOthers);
+$('#btnDeleteSel').addEventListener('click', deleteSelection);
 $('#selClear').addEventListener('click', () => { selectedNode = null; setSelection([], false); });
 $('#material').addEventListener('change', () => {
   $('#customDensityWrap').hidden = $('#material').value !== 'custom';
@@ -914,6 +987,8 @@ $('#viewport').addEventListener('pointerdown', () => { toggleDrawer('treePanel',
 window.addEventListener('keydown', (e) => {
   if (e.target.closest('input, select, textarea')) return;
   const k = e.key.toLowerCase();
+  if ((e.ctrlKey || e.metaKey) && k === 'z') { e.preventDefault(); undoDelete(); return; }
+  if (k === 'delete' || k === 'backspace') { e.preventDefault(); deleteSelection(); return; }
   if (k === 'f') viewer.fit();
   else if (k === 's') viewer.fit(viewer.selected.size ? [...viewer.selected] : null);
   else if (k === 'o') setOrtho(viewer.camera !== viewer.ortho);
@@ -927,4 +1002,4 @@ window.addEventListener('keydown', (e) => {
 });
 
 // exposed for automated acceptance tests only (no network, no side effects)
-window.__stepViewer = { viewer, viewCube, parts, nodes, files, measure, openFiles, selectPart, generateDxf, getDxf: () => dxfText, setSectionAxis };
+window.__stepViewer = { deleteParts, undoDelete, restoreAll, viewer, viewCube, parts, nodes, files, measure, openFiles, selectPart, generateDxf, getDxf: () => dxfText, setSectionAxis };

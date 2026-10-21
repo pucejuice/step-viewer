@@ -80,6 +80,10 @@ input[type="range"] { width: 100%; }
 #selBar { display: flex; align-items: center; gap: 3px; margin: 0 8px 6px; padding: 4px 6px; border: 1px solid var(--accent); border-radius: 6px; font-size: 12px; flex-wrap: wrap; }
 #selBar[hidden] { display: none; }
 #selCount { margin-right: auto; }
+button.danger { border-color: #c92a2a; color: #e03131; }
+button.danger:hover { background: rgba(224, 49, 49, .12); }
+.toast-act { margin-left: 10px; }
+.deleted-note { color: var(--warn); background: var(--warn-bg); }
 #userGroups { border-bottom: 1px solid var(--border); padding-bottom: 4px; margin-bottom: 4px; }
 .ug-head { display: flex; align-items: baseline; gap: 8px; padding: 4px 8px; }
 .row-n .gtag { color: var(--accent); }

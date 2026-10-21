@@ -158,7 +158,7 @@ export class Viewer {
     this.requestRender();
   }
 
-  partVisible(p) { return p.visible && (!this.isolated || this.isolated.has(p.id) || this.ghost); }
+  partVisible(p) { return !p.deleted && p.visible && (!this.isolated || this.isolated.has(p.id) || this.ghost); }
 
   /** Apply visibility, selection colour and transparency to every part. */
   refreshAppearance() {
@@ -166,7 +166,7 @@ export class Viewer {
     for (const p of this.parts) {
       if (!p) continue;
       const isoOut = this.isolated && !this.isolated.has(p.id);
-      const vis = p.visible && (!isoOut || this.ghost);
+      const vis = !p.deleted && p.visible && (!isoOut || this.ghost);
       p.mesh.visible = vis;
       p.edges.visible = vis && this.edgesOn;
       const m = p.mesh.material;
